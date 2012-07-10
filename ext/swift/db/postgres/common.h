@@ -22,3 +22,4 @@ extern VALUE cDPA, cDPS, cDPR;
 extern VALUE eSwiftError, eSwiftArgumentError, eSwiftRuntimeError, eSwiftConnectionError;
 
 DLL_PRIVATE VALUE rb_uuid_string();
+DLL_PRIVATE VALUE db_postgres_normalized_sql(VALUE);

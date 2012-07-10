@@ -3,8 +3,13 @@
 // (c) Bharanee Rathna 2012
 
 #include "common.h"
-#include "uuid/uuid.h"
+#include <ruby/re.h>
+#include <uuid/uuid.h>
 
+#define BEG(no) (regs->beg[(no)])
+#define END(no) (regs->end[(no)])
+
+extern VALUE oRegex;
 VALUE rb_uuid_string() {
     size_t n;
     uuid_t uuid;
@@ -16,4 +21,26 @@ VALUE rb_uuid_string() {
 
     uuid_hex[0] = 'u';
     return rb_str_new(uuid_hex, sizeof(uuid_t) * 2 + 1);
+}
+
+/* TODO: is this slower than rb_funcall(sql, rb_intern("sub!"), ...) */
+VALUE db_postgres_normalized_sql(VALUE sql) {
+    char buffer[256];
+    int n = 1, begin, end;
+    struct re_registers *regs;
+    VALUE match, repl;
+
+    sql = rb_obj_dup(TO_S(sql));
+    while (rb_reg_search(oRegex, sql, 0, 0) >= 0) {
+        snprintf(buffer, 256, "$%d", n++);
+        match = rb_backref_get();
+        regs  = RMATCH_REGS(match);
+        begin = BEG(0);
+        end   = END(0);
+        repl  = rb_str_new(RSTRING_PTR(sql), begin);
+        rb_str_concat(repl, rb_str_new2(buffer));
+        rb_str_concat(repl, rb_str_new(RSTRING_PTR(sql) + end, RSTRING_LEN(sql) - end + 1));
+        sql   = repl;
+    }
+    return sql;
 }

@@ -93,13 +93,15 @@ void db_postgres_adapter_check_result(PGresult *result) {
 }
 
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
+    char buffer[256];
     char **bind_args_data = 0;
     int n, *bind_args_size = 0;
     PGresult *pg_result;
-    VALUE sql, bind, data, result;
+    VALUE sql, bind, data;
     Adapter *a = db_postgres_adapter_handle_safe(self);
 
     rb_scan_args(argc, argv, "10*", &sql, &bind);
+    sql = db_postgres_normalized_sql(sql);
 
     if (RARRAY_LEN(bind) > 0) {
         bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
@@ -136,8 +138,8 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
 
 void init_swift_db_postgres_adapter() {
     rb_require("etc");
-    sUser = rb_funcall(CONST_GET(rb_mKernel, "Etc"), rb_intern("getlogin"), 0);
-    cDPA  = rb_define_class_under(mDB, "Postgres", rb_cObject);
+    sUser  = rb_funcall(CONST_GET(rb_mKernel, "Etc"), rb_intern("getlogin"), 0);
+    cDPA   = rb_define_class_under(mDB, "Postgres", rb_cObject);
 
     rb_define_alloc_func(cDPA, db_postgres_adapter_allocate);
 
