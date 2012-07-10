@@ -59,7 +59,7 @@ void db_postgres_check_result(PGresult *result) {
         case PGRES_NONFATAL_ERROR:
             error = rb_str_new2(PQresultErrorMessage(result));
             PQclear(result);
-            rb_raise(eSwiftRuntimeError, "%s", CSTRING(error));
+            rb_raise(strstr(CSTRING(error), "bind message") ? eSwiftArgumentError : eSwiftRuntimeError, "%s", CSTRING(error));
             break;
         default:
             PQclear(result);

@@ -62,8 +62,8 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
     r->types     = rb_ary_new();
     r->rows      = rb_ary_new();
     r->result    = result;
-    r->selected  = PQntuples(result);
     r->affected  = atol(PQcmdTuples(result));
+    r->selected  = PQntuples(result);
     r->insert_id = 0;
 
     rows = PQntuples(result);
@@ -99,8 +99,6 @@ VALUE db_postgres_result_each(VALUE self) {
     int row, col;
     Result *r = db_postgres_result_handle(self);
 
-    printf("types: %s\n", RSTRING_PTR(rb_funcall(r->types, rb_intern("inspect"), 0)));
-
     for (row = 0; row < PQntuples(r->result); row++) {
         VALUE tuple = rb_hash_new();
         for (col = 0; col < PQnfields(r->result); col++) {
@@ -130,7 +128,7 @@ VALUE db_postgres_result_selected_rows(VALUE self) {
 
 VALUE db_postgres_result_affected_rows(VALUE self) {
     Result *r = db_postgres_result_handle(self);
-    return SIZET2NUM(r->affected);
+    return SIZET2NUM(r->selected > 0 ? 0 : r->affected);
 }
 
 VALUE db_postgres_result_fields(VALUE self) {
