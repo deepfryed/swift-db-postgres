@@ -89,28 +89,6 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     return self;
 }
 
-void db_postgres_adapter_check_result(PGresult *result) {
-    VALUE error;
-    switch (PQresultStatus(result)) {
-        case PGRES_TUPLES_OK:
-        case PGRES_COPY_OUT:
-        case PGRES_COPY_IN:
-        case PGRES_EMPTY_QUERY:
-        case PGRES_COMMAND_OK:
-            break;
-        case PGRES_BAD_RESPONSE:
-        case PGRES_FATAL_ERROR:
-        case PGRES_NONFATAL_ERROR:
-            error = rb_str_new2(PQresultErrorMessage(result));
-            PQclear(result);
-            rb_raise(eSwiftRuntimeError, "%s", CSTRING(error));
-            break;
-        default:
-            PQclear(result);
-            rb_raise(eSwiftRuntimeError, "unknown error, check logs");
-    }
-}
-
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     char buffer[256];
     char **bind_args_data = 0;
@@ -151,9 +129,150 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         pg_result = PQexec(a->connection, CSTRING(sql));
     }
 
-    db_postgres_adapter_check_result(pg_result);
+    db_postgres_check_result(pg_result);
     return db_postgres_result_load(db_postgres_result_allocate(cDPR), pg_result);
 }
+
+VALUE db_postgres_adapter_begin(int argc, VALUE *argv, VALUE self) {
+    int auto_commit;
+    char command[256];
+    VALUE savepoint;
+    PGresult *result;
+
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    rb_scan_args(argc, argv, "01", &savepoint);
+
+    if (a->t_nesting == 0) {
+        result = PQexec(a->connection, "begin");
+        db_postgres_check_result(result);
+        PQclear(result);
+        a->t_nesting++;
+        if (NIL_P(savepoint))
+            return Qtrue;
+    }
+
+    if (NIL_P(savepoint))
+        savepoint = rb_uuid_string();
+
+    snprintf(command, 256, "savepoint %s", CSTRING(savepoint));
+    result = PQexec(a->connection, command);
+    db_postgres_check_result(result);
+    PQclear(result);
+
+    a->t_nesting++;
+    return savepoint;
+}
+
+VALUE db_postgres_adapter_commit(int argc, VALUE *argv, VALUE self) {
+    VALUE savepoint;
+    char command[256];
+    PGresult *result;
+
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    rb_scan_args(argc, argv, "01", &savepoint);
+
+    if (a->t_nesting == 0)
+        return Qfalse;
+
+    if (NIL_P(savepoint)) {
+        result = PQexec(a->connection, "commit");
+        db_postgres_check_result(result);
+        PQclear(result);
+        a->t_nesting--;
+    }
+    else {
+        snprintf(command, 256, "release savepoint %s", CSTRING(savepoint));
+        result = PQexec(a->connection, command);
+        db_postgres_check_result(result);
+        PQclear(result);
+        a->t_nesting--;
+    }
+    return Qtrue;
+}
+
+VALUE db_postgres_adapter_rollback(int argc, VALUE *argv, VALUE self) {
+    VALUE savepoint;
+    char command[256];
+    PGresult *result;
+
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    rb_scan_args(argc, argv, "01", &savepoint);
+
+    if (a->t_nesting == 0)
+        return Qfalse;
+
+    if (NIL_P(savepoint)) {
+        result = PQexec(a->connection, "rollback");
+        db_postgres_check_result(result);
+        PQclear(result);
+        a->t_nesting--;
+    }
+    else {
+        snprintf(command, 256, "rollback to savepoint %s", CSTRING(savepoint));
+        result = PQexec(a->connection, command);
+        db_postgres_check_result(result);
+        PQclear(result);
+        a->t_nesting--;
+    }
+    return Qtrue;
+}
+
+VALUE db_postgres_adapter_transaction(int argc, VALUE *argv, VALUE self) {
+    int status;
+    VALUE savepoint, block, block_result;
+
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    rb_scan_args(argc, argv, "01&", &savepoint, &block);
+
+    if (NIL_P(block))
+        rb_raise(eSwiftRuntimeError, "postgres transaction requires a block");
+
+    if (a->t_nesting == 0) {
+        db_postgres_adapter_begin(1, &savepoint, self);
+        block_result = rb_protect(rb_yield, self, &status);
+        if (!status) {
+            db_postgres_adapter_commit(1, &savepoint, self);
+            if (!NIL_P(savepoint))
+                db_postgres_adapter_commit(0, 0, self);
+        }
+        else {
+            db_postgres_adapter_rollback(1, &savepoint, self);
+            if (!NIL_P(savepoint))
+                db_postgres_adapter_rollback(0, 0, self);
+            rb_jump_tag(status);
+        }
+    }
+    else {
+        if (NIL_P(savepoint))
+            savepoint = rb_uuid_string();
+        db_postgres_adapter_begin(1, &savepoint, self);
+        block_result = rb_protect(rb_yield, self, &status);
+        if (!status)
+            db_postgres_adapter_commit(1, &savepoint, self);
+        else {
+            db_postgres_adapter_rollback(1, &savepoint, self);
+            rb_jump_tag(status);
+        }
+    }
+
+    return block_result;
+}
+
+VALUE db_postgres_adapter_close(VALUE self) {
+    Adapter *a = db_postgres_adapter_handle(self);
+    if (a->connection) {
+        PQfinish(a->connection);
+        a->connection = 0;
+        return Qtrue;
+    }
+    return Qfalse;
+}
+
+VALUE db_postgres_adapter_closed_q(VALUE self) {
+    Adapter *a = db_postgres_adapter_handle(self);
+    return a->connection ? Qfalse : Qtrue;
+}
+
 
 void init_swift_db_postgres_adapter() {
     rb_require("etc");
@@ -166,13 +285,13 @@ void init_swift_db_postgres_adapter() {
     rb_define_method(cDPA, "execute",     db_postgres_adapter_execute,     -1);
 /*
     rb_define_method(cDPA, "prepare",     db_postgres_adapter_prepare,      1);
+*/
     rb_define_method(cDPA, "begin",       db_postgres_adapter_begin,       -1);
     rb_define_method(cDPA, "commit",      db_postgres_adapter_commit,      -1);
     rb_define_method(cDPA, "rollback",    db_postgres_adapter_rollback,    -1);
     rb_define_method(cDPA, "transaction", db_postgres_adapter_transaction, -1);
     rb_define_method(cDPA, "close",       db_postgres_adapter_close,        0);
     rb_define_method(cDPA, "closed?",     db_postgres_adapter_closed_q,     0);
-*/
 
     rb_global_variable(&sUser);
 }
