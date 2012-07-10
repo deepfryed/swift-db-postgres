@@ -11,6 +11,10 @@
 VALUE mSwift, mDB, oRegex;
 VALUE eSwiftError, eSwiftArgumentError, eSwiftRuntimeError, eSwiftConnectionError;
 
+void atexit_caller(VALUE data) {
+    rb_gc();
+}
+
 void Init_swift_db_postgres_ext() {
     mSwift = rb_define_module("Swift");
     mDB    = rb_define_module_under(mSwift, "DB");
@@ -28,4 +32,5 @@ void Init_swift_db_postgres_ext() {
     init_swift_db_postgres_typecast();
 
     rb_global_variable(&oRegex);
+    rb_set_end_proc(atexit_caller, Qnil);
 }

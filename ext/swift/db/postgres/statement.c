@@ -30,7 +30,7 @@ Statement* db_postgres_statement_handle(VALUE self) {
 }
 
 void db_postgres_statement_mark(Statement *s) {
-    if (s && !NIL_P(s->adapter))
+    if (s && s->adapter)
         rb_gc_mark_maybe(s->adapter);
 }
 
@@ -58,6 +58,7 @@ VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
 
     snprintf(s->id, 64, "S%s", CSTRING(rb_uuid_string()));
     s->adapter = adapter;
+    rb_gc_mark(s->adapter);
 
     connection = db_postgres_adapter_handle_safe(adapter)->connection;
     result     = PQprepare(connection, s->id, CSTRING(db_postgres_normalized_sql(sql)), 0, 0);
