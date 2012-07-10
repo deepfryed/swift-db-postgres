@@ -1,0 +1,10 @@
+ext/swift/db/postgres/*
+!ext/swift/db/postgres/*.rb
+!ext/swift/db/postgres/*.c
+!ext/swift/db/postgres/*.h
+pkg/
+tmp/
+*.gem
+benchmarks/gems/*
+benchmarks/.bundle/*
+orig/*
