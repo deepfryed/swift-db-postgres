@@ -90,6 +90,25 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
 }
 
 void db_postgres_adapter_check_result(PGresult *result) {
+    VALUE error;
+    switch (PQresultStatus(result)) {
+        case PGRES_TUPLES_OK:
+        case PGRES_COPY_OUT:
+        case PGRES_COPY_IN:
+        case PGRES_EMPTY_QUERY:
+        case PGRES_COMMAND_OK:
+            break;
+        case PGRES_BAD_RESPONSE:
+        case PGRES_FATAL_ERROR:
+        case PGRES_NONFATAL_ERROR:
+            error = rb_str_new2(PQresultErrorMessage(result));
+            PQclear(result);
+            rb_raise(eSwiftRuntimeError, "%s", CSTRING(error));
+            break;
+        default:
+            PQclear(result);
+            rb_raise(eSwiftRuntimeError, "unknown error, check logs");
+    }
 }
 
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
