@@ -3,18 +3,20 @@
 // (c) Bharanee Rathna 2012
 
 #include "statement.h"
+#include "adapter.h"
 #include "typecast.h"
 
 /* declaration */
 
 VALUE cDPS;
 
-VALUE db_postgres_result_allocate(VALUE);
-VALUE db_postgres_result_load(VALUE, PGresult*);
+VALUE    db_postgres_result_allocate(VALUE);
+VALUE    db_postgres_result_load(VALUE, PGresult*);
+Adapter* db_postgres_adapter_handle_safe(VALUE);
 
 typedef struct Statement {
     char id[64];
-    PGconn *connection;
+    VALUE adapter;
 } Statement;
 
 /* definition */
@@ -28,14 +30,17 @@ Statement* db_postgres_statement_handle(VALUE self) {
 }
 
 void db_postgres_statement_mark(Statement *s) {
+    if (s && !NIL_P(s->adapter))
+        rb_gc_mark_maybe(s->adapter);
 }
 
 VALUE db_postgres_statement_deallocate(Statement *s) {
     char command[128];
+    PGconn *connection = db_postgres_adapter_handle_safe(s->adapter)->connection;
     if (s) {
-        if (s->connection && PQstatus(s->connection) == CONNECTION_OK) {
+        if (connection && PQstatus(connection) == CONNECTION_OK) {
             snprintf(command, 128, "deallocate %s", s->id);
-            PQclear(PQexec(s->connection, command));
+            PQclear(PQexec(connection, command));
         }
         free(s);
     }
@@ -46,62 +51,71 @@ VALUE db_postgres_statement_allocate(VALUE klass) {
     return Data_Wrap_Struct(klass, db_postgres_statement_mark, db_postgres_statement_deallocate, s);
 }
 
-/*
-
 VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
+    PGresult *result;
+    PGconn *connection;
     Statement *s = db_postgres_statement_handle(self);
 
-    s->s       = 0;
-    s->c       = db_postgres_adapter_handle_safe(adapter)->connection;
+    snprintf(s->id, 64, "S%s", CSTRING(rb_uuid_string()));
     s->adapter = adapter;
 
-    if (postgres_prepare_v2(s->c, RSTRING_PTR(sql), RSTRING_LEN(sql), &(s->s), 0) != SQLITE_OK)
-        rb_raise(eSwiftRuntimeError, "%s\nSQL: %s", postgres_errmsg(s->c), RSTRING_PTR(sql));
+    connection = db_postgres_adapter_handle_safe(adapter)->connection;
+    result     = PQprepare(connection, s->id, CSTRING(db_postgres_normalized_sql(sql)), 0, 0);
 
+    db_postgres_check_result(result);
+    PQclear(result);
     return self;
 }
 
-VALUE db_postgres_statement_insert_id(VALUE self) {
-    Statement *s = db_postgres_statement_handle(self);
-    return SIZET2NUM(postgres_last_insert_rowid(s->c));
-}
-
 VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
-    int expect, n;
-    VALUE bind, result;
+    PGresult *result;
+    PGconn *connection;
+    char **bind_args_data = 0;
+    int n, *bind_args_size = 0;
+    VALUE bind, data;
 
     Statement *s = db_postgres_statement_handle(self);
+    connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
 
     rb_scan_args(argc, argv, "00*", &bind);
-    expect = postgres_bind_parameter_count(s->s);
-    if (expect != RARRAY_LEN(bind))
-        rb_raise(eSwiftArgumentError, "expected %d bind values got %d", expect, RARRAY_LEN(bind));
 
-    for (n = 0; n < expect; n++) {
-        VALUE value = rb_ary_entry(bind, n);
-        if (NIL_P(value))
-            postgres_bind_null(s->s, n + 1);
-        else {
-            VALUE text = typecast_to_string(value);
-            postgres_bind_text(s->s, n + 1, RSTRING_PTR(text), RSTRING_LEN(text), 0);
+    if (RARRAY_LEN(bind) > 0) {
+        bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
+
+        rb_gc_disable();
+        for (n = 0; n < RARRAY_LEN(bind); n++) {
+            data = rb_ary_entry(bind, n);
+            if (NIL_P(data)) {
+                bind_args_size[n] = 0;
+                bind_args_data[n] = 0;
+            }
+            else {
+                data = typecast_to_string(data);
+                bind_args_size[n] = RSTRING_LEN(data);
+                bind_args_data[n] = RSTRING_PTR(data);
+            }
         }
+
+        result = PQexecPrepared(connection, s->id, RARRAY_LEN(bind), (const char* const *)bind_args_data, bind_args_size, 0, 0);
+
+        rb_gc_enable();
+        free(bind_args_size);
+        free(bind_args_data);
+    }
+    else {
+        result = PQexecPrepared(connection, s->id, RARRAY_LEN(bind), 0, 0, 0, 0);
     }
 
-    result = db_postgres_result_allocate(cDSR);
-    db_postgres_result_initialize(result, self);
-    db_postgres_result_consume(result);
-    return result;
+    db_postgres_check_result(result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
 }
-*/
 
 void init_swift_db_postgres_statement() {
     cDPS = rb_define_class_under(cDPA, "Statement", rb_cObject);
     rb_define_alloc_func(cDPS, db_postgres_statement_allocate);
-    /*
     rb_define_method(cDPS, "initialize", db_postgres_statement_initialize, 2);
     rb_define_method(cDPS, "execute",    db_postgres_statement_execute,   -1);
-    rb_define_method(cDPS, "insert_id",  db_postgres_statement_insert_id,  0);
-    */
 }
 
 

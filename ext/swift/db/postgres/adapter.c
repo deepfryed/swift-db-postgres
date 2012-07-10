@@ -9,11 +9,8 @@
 VALUE cDPA, sUser;
 VALUE db_postgres_result_load(VALUE, PGresult *);
 VALUE db_postgres_result_allocate(VALUE);
-
-typedef struct Adapter {
-    PGconn *connection;
-    int t_nesting;
-} Adapter;
+VALUE db_postgres_statement_allocate(VALUE);
+VALUE db_postgres_statement_initialize(VALUE, VALUE, VALUE);
 
 /* definition */
 Adapter* db_postgres_adapter_handle(VALUE self) {
@@ -273,6 +270,10 @@ VALUE db_postgres_adapter_closed_q(VALUE self) {
     return a->connection ? Qfalse : Qtrue;
 }
 
+VALUE db_postgres_adapter_prepare(VALUE self, VALUE sql) {
+    return db_postgres_statement_initialize(db_postgres_statement_allocate(cDPS), self, sql);
+}
+
 
 void init_swift_db_postgres_adapter() {
     rb_require("etc");
@@ -283,9 +284,7 @@ void init_swift_db_postgres_adapter() {
 
     rb_define_method(cDPA, "initialize",  db_postgres_adapter_initialize,   1);
     rb_define_method(cDPA, "execute",     db_postgres_adapter_execute,     -1);
-/*
     rb_define_method(cDPA, "prepare",     db_postgres_adapter_prepare,      1);
-*/
     rb_define_method(cDPA, "begin",       db_postgres_adapter_begin,       -1);
     rb_define_method(cDPA, "commit",      db_postgres_adapter_commit,      -1);
     rb_define_method(cDPA, "rollback",    db_postgres_adapter_rollback,    -1);

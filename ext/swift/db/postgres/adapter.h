@@ -6,4 +6,9 @@
 
 #include "common.h"
 
+typedef struct Adapter {
+    PGconn *connection;
+    int t_nesting;
+} Adapter;
+
 void init_swift_db_postgres_adapter();
