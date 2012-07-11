@@ -8,10 +8,13 @@ MRI adapter for postgres for use in Swift ORM.
   Swift::DB::Postgres
     .new(options)
     #execute(sql, *bind)
+    #prepare(sql)
     #begin(savepoint = nil)
     #commit(savepoint = nil)
     #rollback(savepoint = nil)
     #transaction(savepoint = nil, &block)
+    #close
+    #closed?
 
   Swift::DB::Postgres::Statement
     .new(Swift::DB::Postgres, sql)
