@@ -274,6 +274,18 @@ VALUE db_postgres_adapter_prepare(VALUE self, VALUE sql) {
     return db_postgres_statement_initialize(db_postgres_statement_allocate(cDPS), self, sql);
 }
 
+VALUE db_postgres_adapter_escape(VALUE self, VALUE fragment) {
+    int error;
+    VALUE text = TO_S(fragment);
+    char pg_escaped[RSTRING_LEN(text) * 2 + 1];
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    PQescapeStringConn(a->connection, pg_escaped, RSTRING_PTR(text), RSTRING_LEN(text), &error);
+
+    if (error)
+        rb_raise(eSwiftArgumentError, "invalid escape string: %s\n", PQerrorMessage(a->connection));
+
+    return rb_str_new2(pg_escaped);
+}
 
 void init_swift_db_postgres_adapter() {
     rb_require("etc");
@@ -291,6 +303,7 @@ void init_swift_db_postgres_adapter() {
     rb_define_method(cDPA, "transaction", db_postgres_adapter_transaction, -1);
     rb_define_method(cDPA, "close",       db_postgres_adapter_close,        0);
     rb_define_method(cDPA, "closed?",     db_postgres_adapter_closed_q,     0);
+    rb_define_method(cDPA, "escape",      db_postgres_adapter_escape,       1);
 
     rb_global_variable(&sUser);
 }

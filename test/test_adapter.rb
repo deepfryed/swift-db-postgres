@@ -60,4 +60,8 @@ describe 'postgres adapter' do
     assert_equal 1, s.execute(0).selected_rows
     assert_equal 0, s.execute(1).selected_rows
   end
+
+  it 'should escape whatever' do
+    assert_equal "foo''bar", db.escape("foo'bar")
+  end
 end
