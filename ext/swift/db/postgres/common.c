@@ -23,26 +23,22 @@ VALUE rb_uuid_string() {
     return rb_str_new(uuid_hex, sizeof(uuid_t) * 2 + 1);
 }
 
-/* TODO: is this slower than rb_funcall(sql, rb_intern("sub!"), ...) */
+/* NOTE: very naive, no regex etc. */
+/* TODO: a better ragel based replace thingamajigy */
 VALUE db_postgres_normalized_sql(VALUE sql) {
-    char buffer[256];
-    int n = 1, begin, end;
-    struct re_registers *regs;
-    VALUE match, repl;
+    int i = 0, j = 0, n = 1;
+    char normalized[RSTRING_LEN(sql) * 2], *ptr = RSTRING_PTR(sql);
 
-    sql = rb_obj_dup(TO_S(sql));
-    while (rb_reg_search(oRegex, sql, 0, 0) >= 0) {
-        snprintf(buffer, 256, "$%d", n++);
-        match = rb_backref_get();
-        regs  = RMATCH_REGS(match);
-        begin = BEG(0);
-        end   = END(0);
-        repl  = rb_str_new(RSTRING_PTR(sql), begin);
-        rb_str_concat(repl, rb_str_new2(buffer));
-        rb_str_concat(repl, rb_str_new(RSTRING_PTR(sql) + end, RSTRING_LEN(sql) - end + 1));
-        sql   = repl;
+    while (i < RSTRING_LEN(sql)) {
+        if (*ptr == '?')
+            j += snprintf(normalized + j, 4, "$%d", n++);
+        else
+            normalized[j++] = *ptr;
+        ptr++;
+        i++;
     }
-    return sql;
+
+    return rb_str_new(normalized, j);
 }
 
 void db_postgres_check_result(PGresult *result) {

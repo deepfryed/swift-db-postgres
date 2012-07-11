@@ -30,7 +30,7 @@ describe 'postgres adapter' do
     assert_equal 1,      row[:id]
     assert_equal 'test', row[:name]
     assert_equal nil,    row[:age]
-    assert_equal now.to_f.round(6), row[:created_at].to_time.to_f.round(6)
+    assert_equal now.to_f.round(3), row[:created_at].to_time.to_f.round(3) # millisecs resolution on postgres
 
     result = db.execute('delete from users where id = 0')
     assert_equal 0, result.selected_rows
