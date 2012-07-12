@@ -35,15 +35,8 @@ void db_postgres_statement_mark(Statement *s) {
 }
 
 VALUE db_postgres_statement_deallocate(Statement *s) {
-    char command[128];
-    PGconn *connection = db_postgres_adapter_handle_safe(s->adapter)->connection;
-    if (s) {
-        if (connection && PQstatus(connection) == CONNECTION_OK) {
-            snprintf(command, 128, "deallocate %s", s->id);
-            PQclear(PQexec(connection, command));
-        }
+    if (s)
         free(s);
-    }
 }
 
 VALUE db_postgres_statement_allocate(VALUE klass) {
@@ -56,7 +49,7 @@ VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
     PGconn *connection;
     Statement *s = db_postgres_statement_handle(self);
 
-    snprintf(s->id, 64, "S%s", CSTRING(rb_uuid_string()));
+    snprintf(s->id, 64, "s%s", CSTRING(rb_uuid_string()));
     s->adapter = adapter;
     rb_gc_mark(s->adapter);
 
@@ -66,6 +59,25 @@ VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
     db_postgres_check_result(result);
     PQclear(result);
     return self;
+}
+
+VALUE db_postgres_statement_release(VALUE self) {
+    char command[128];
+    PGresult *result;
+    PGconn *connection;
+
+    Statement *s = db_postgres_statement_handle(self);
+    connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
+
+    if (connection && PQstatus(connection) == CONNECTION_OK) {
+        snprintf(command, 128, "deallocate %s", s->id);
+        result = PQexec(connection, command);
+        db_postgres_check_result(result);
+        PQclear(result);
+        return Qtrue;
+    }
+
+    return Qfalse;
 }
 
 VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
@@ -117,6 +129,7 @@ void init_swift_db_postgres_statement() {
     rb_define_alloc_func(cDPS, db_postgres_statement_allocate);
     rb_define_method(cDPS, "initialize", db_postgres_statement_initialize, 2);
     rb_define_method(cDPS, "execute",    db_postgres_statement_execute,   -1);
+    rb_define_method(cDPS, "release",    db_postgres_statement_release,    0);
 }
 
 

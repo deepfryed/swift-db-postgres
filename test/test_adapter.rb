@@ -51,7 +51,7 @@ describe 'postgres adapter' do
     assert_raises(Swift::ConnectionError) { db.execute("select * from users") }
   end
 
-  it 'should prepare statement' do
+  it 'should prepare & release statement' do
     assert db.execute('drop table if exists users')
     assert db.execute("create table users(id serial primary key, name text)")
     assert db.execute("insert into users (name) values (?)", "test")
@@ -59,6 +59,9 @@ describe 'postgres adapter' do
 
     assert_equal 1, s.execute(0).selected_rows
     assert_equal 0, s.execute(1).selected_rows
+
+    assert s.release
+    assert_raises(Swift::RuntimeError) { s.execute(1) }
   end
 
   it 'should escape whatever' do

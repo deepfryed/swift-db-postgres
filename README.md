@@ -20,6 +20,7 @@ MRI adapter for postgres for use in Swift ORM.
   Swift::DB::Postgres::Statement
     .new(Swift::DB::Postgres, sql)
     #execute(*bind)
+    #release
 
   Swift::DB::Postgres::Result
     #selected_rows

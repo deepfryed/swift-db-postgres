@@ -3,13 +3,8 @@
 // (c) Bharanee Rathna 2012
 
 #include "common.h"
-#include <ruby/re.h>
 #include <uuid/uuid.h>
 
-#define BEG(no) (regs->beg[(no)])
-#define END(no) (regs->end[(no)])
-
-extern VALUE oRegex;
 VALUE rb_uuid_string() {
     size_t n;
     uuid_t uuid;

@@ -8,17 +8,12 @@
 #include "result.h"
 #include "datetime.h"
 
-VALUE mSwift, mDB, oRegex;
+VALUE mSwift, mDB;
 VALUE eSwiftError, eSwiftArgumentError, eSwiftRuntimeError, eSwiftConnectionError;
-
-void atexit_caller(VALUE data) {
-    rb_gc();
-}
 
 void Init_swift_db_postgres_ext() {
     mSwift = rb_define_module("Swift");
     mDB    = rb_define_module_under(mSwift, "DB");
-    oRegex = rb_funcall(rb_cRegexp, rb_intern("new"), 1, rb_str_new2("(?<!')(%(?:[dsfu]|l[dfu])|\\?)(?!')"));
 
     eSwiftError           = rb_define_class_under(mSwift, "Error",           rb_eStandardError);
     eSwiftArgumentError   = rb_define_class_under(mSwift, "ArgumentError",   eSwiftError);
@@ -30,7 +25,4 @@ void Init_swift_db_postgres_ext() {
     init_swift_db_postgres_result();
     init_swift_datetime();
     init_swift_db_postgres_typecast();
-
-    rb_global_variable(&oRegex);
-    rb_set_end_proc(atexit_caller, Qnil);
 }
