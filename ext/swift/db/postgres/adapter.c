@@ -89,7 +89,7 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     char buffer[256];
     char **bind_args_data = 0;
-    int n, *bind_args_size = 0;
+    int n, *bind_args_size = 0, *bind_args_fmt = 0;
     PGresult *pg_result;
     VALUE sql, bind, data;
     Adapter *a = db_postgres_adapter_handle_safe(self);
@@ -99,6 +99,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
 
     if (RARRAY_LEN(bind) > 0) {
         bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
 
         rb_gc_disable();
@@ -107,8 +108,14 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
             if (NIL_P(data)) {
                 bind_args_size[n] = 0;
                 bind_args_data[n] = 0;
+                bind_args_fmt[n]  = 0;
             }
             else {
+                if (rb_obj_is_kind_of(data, rb_cIO) || rb_obj_is_kind_of(data, cStringIO))
+                    bind_args_fmt[n] = 1;
+                else
+                    bind_args_fmt[n] = 0;
+
                 data = typecast_to_string(data);
                 bind_args_size[n] = RSTRING_LEN(data);
                 bind_args_data[n] = RSTRING_PTR(data);
@@ -116,11 +123,12 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         }
 
         pg_result = PQexecParams(a->connection, CSTRING(sql), RARRAY_LEN(bind), 0,
-            (const char * const *)bind_args_data, bind_args_size, 0, 0);
+            (const char * const *)bind_args_data, bind_args_size, bind_args_fmt, 0);
 
         rb_gc_enable();
         free(bind_args_size);
         free(bind_args_data);
+        free(bind_args_fmt);
     }
     else {
         pg_result = PQexec(a->connection, CSTRING(sql));

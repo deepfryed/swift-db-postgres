@@ -18,6 +18,9 @@ VALUE typecast_string(const char *data, size_t n) {
 }
 
 VALUE typecast_detect(const char *data, size_t size, int type) {
+    VALUE value;
+    char *bytea;
+    size_t bytea_len;
     switch (type) {
         case SWIFT_TYPE_INT:
             return rb_cstr2inum(data, 10);
@@ -28,7 +31,10 @@ VALUE typecast_detect(const char *data, size_t size, int type) {
         case SWIFT_TYPE_BOOLEAN:
             return (data && (data[0] =='t' || data[0] == '1')) ? Qtrue : Qfalse;
         case SWIFT_TYPE_BLOB:
-            return rb_funcall(cStringIO, fnew, 1, rb_str_new(data, size));
+            bytea = PQunescapeBytea(data, &bytea_len);
+            value = rb_str_new(bytea, bytea_len);
+            PQfreemem(bytea);
+            return rb_funcall(cStringIO, fnew, 1, value);
         case SWIFT_TYPE_TIMESTAMP:
             return datetime_parse(cSwiftDateTime, data, size);
         case SWIFT_TYPE_DATE:
