@@ -131,7 +131,6 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
 }
 
 VALUE db_postgres_adapter_begin(int argc, VALUE *argv, VALUE self) {
-    int auto_commit;
     char command[256];
     VALUE savepoint;
     PGresult *result;
