@@ -97,7 +97,6 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
         bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
 
-        rb_gc_disable();
         for (n = 0; n < RARRAY_LEN(bind); n++) {
             data = rb_ary_entry(bind, n);
             if (NIL_P(data)) {
@@ -122,7 +121,6 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
             (const char* const *)bind_args_data, bind_args_size, bind_args_fmt, 0
         );
 
-        rb_gc_enable();
         free(bind_args_fmt);
         free(bind_args_size);
         free(bind_args_data);
