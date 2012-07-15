@@ -86,6 +86,16 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     return self;
 }
 
+VALUE nogvl_pq_exec(void *ptr) {
+    Query *q = (Query *)ptr;
+    return (VALUE)PQexec(q->connection, q->command);
+}
+
+VALUE nogvl_pq_exec_params(void *ptr) {
+    Query *q = (Query *)ptr;
+    return (VALUE)PQexecParams(q->connection, q->command, q->n_args, 0, (const char * const *)q->data, q->size, q->format, 0);
+}
+
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     char buffer[256];
     char **bind_args_data = 0;
@@ -121,15 +131,23 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
             }
         }
 
-        pg_result = PQexecParams(a->connection, CSTRING(sql), RARRAY_LEN(bind), 0,
-            (const char * const *)bind_args_data, bind_args_size, bind_args_fmt, 0);
+        Query q = {
+            .connection = a->connection,
+            .command    = CSTRING(sql),
+            .n_args     = RARRAY_LEN(bind),
+            .data       = bind_args_data,
+            .size       = bind_args_size,
+            .format     = bind_args_fmt
+        };
 
+        pg_result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
         free(bind_args_size);
         free(bind_args_data);
         free(bind_args_fmt);
     }
     else {
-        pg_result = PQexec(a->connection, CSTRING(sql));
+        Query q = {.connection = a->connection, .command = CSTRING(sql)};
+        pg_result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec, &q, RUBY_UBF_IO, 0);
     }
 
     db_postgres_check_result(pg_result);
