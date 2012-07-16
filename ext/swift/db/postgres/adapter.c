@@ -7,6 +7,7 @@
 
 /* declaration */
 VALUE cDPA, sUser;
+VALUE db_postgres_result_each(VALUE);
 VALUE db_postgres_result_load(VALUE, PGresult *);
 VALUE db_postgres_result_allocate(VALUE);
 VALUE db_postgres_statement_allocate(VALUE);
@@ -97,7 +98,6 @@ VALUE nogvl_pq_exec_params(void *ptr) {
 }
 
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
-    char buffer[256];
     char **bind_args_data = 0;
     int n, *bind_args_size = 0, *bind_args_fmt = 0;
     PGresult *pg_result;
@@ -310,6 +310,79 @@ VALUE db_postgres_adapter_escape(VALUE self, VALUE fragment) {
     return rb_str_new2(pg_escaped);
 }
 
+VALUE db_postgres_adapter_fileno(VALUE self) {
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    return INT2NUM(PQsocket(a->connection));
+}
+
+VALUE db_postgres_adapter_result(VALUE self) {
+    PGresult *result, *rest;
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    while (1) {
+        PQconsumeInput(a->connection);
+        if (!PQisBusy(a->connection))
+            break;
+    }
+    result = PQgetResult(a->connection);
+    while ((rest = PQgetResult(a->connection))) PQclear(rest);
+    db_postgres_check_result(result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+}
+
+VALUE db_postgres_adapter_query(int argc, VALUE *argv, VALUE self) {
+    VALUE sql, bind, data;
+    char **bind_args_data = 0;
+    int n, ok = 1, *bind_args_size = 0, *bind_args_fmt = 0;
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+
+    rb_scan_args(argc, argv, "10*", &sql, &bind);
+    sql = db_postgres_normalized_sql(sql);
+
+    if (RARRAY_LEN(bind) > 0) {
+        bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
+
+        for (n = 0; n < RARRAY_LEN(bind); n++) {
+            data = rb_ary_entry(bind, n);
+            if (NIL_P(data)) {
+                bind_args_size[n] = 0;
+                bind_args_data[n] = 0;
+                bind_args_fmt[n]  = 0;
+            }
+            else {
+                if (rb_obj_is_kind_of(data, rb_cIO) || rb_obj_is_kind_of(data, cStringIO))
+                    bind_args_fmt[n] = 1;
+                else
+                    bind_args_fmt[n] = 0;
+
+                data = typecast_to_string(data);
+                bind_args_size[n] = RSTRING_LEN(data);
+                bind_args_data[n] = RSTRING_PTR(data);
+            }
+        }
+
+        ok = PQsendQueryParams(a->connection, RSTRING_PTR(sql), RARRAY_LEN(bind), 0,
+            (const char* const *)bind_args_data, bind_args_size, bind_args_fmt, 0);
+
+        free(bind_args_size);
+        free(bind_args_data);
+        free(bind_args_fmt);
+    }
+    else
+        ok = PQsendQuery(a->connection, RSTRING_PTR(sql));
+
+    if (!ok)
+        rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
+
+    if (rb_block_given_p()) {
+        rb_thread_wait_fd(PQsocket(a->connection));
+        return db_postgres_result_each(db_postgres_adapter_result(self));
+    }
+    else
+        return Qtrue;
+}
+
 void init_swift_db_postgres_adapter() {
     rb_require("etc");
     sUser  = rb_funcall(CONST_GET(rb_mKernel, "Etc"), rb_intern("getlogin"), 0);
@@ -327,6 +400,9 @@ void init_swift_db_postgres_adapter() {
     rb_define_method(cDPA, "close",       db_postgres_adapter_close,        0);
     rb_define_method(cDPA, "closed?",     db_postgres_adapter_closed_q,     0);
     rb_define_method(cDPA, "escape",      db_postgres_adapter_escape,       1);
+    rb_define_method(cDPA, "fileno",      db_postgres_adapter_fileno,       0);
+    rb_define_method(cDPA, "query",       db_postgres_adapter_query,       -1);
+    rb_define_method(cDPA, "result",      db_postgres_adapter_result,       0);
 
     rb_global_variable(&sUser);
 }
