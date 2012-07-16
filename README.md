@@ -1,6 +1,6 @@
 # Swift PostgreSQL adapter
 
-MRI adapter for postgres.
+MRI adapter for PostgreSQL
 
 ## Features
 
