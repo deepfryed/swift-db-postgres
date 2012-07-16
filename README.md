@@ -1,6 +1,13 @@
 # Swift PostgreSQL adapter
 
-MRI adapter for postgres for use in Swift ORM.
+MRI adapter for postgres.
+
+## Features
+
+* Lightweight & fast
+* Result typecasting
+* Prepared statements
+* Asynchronous support using PQsendQuery family of functions
 
 ## API
 
@@ -53,6 +60,8 @@ db.execute('select * from users').first #=> {:id => 1, :name => 'test', :age => 
 ```
 
 ### Asynchronous
+
+Hint: You can use `Adapter#fileno` and `EventMachine.watch` if you need to use this with EventMachine.
 
 ```ruby
 rows = []
