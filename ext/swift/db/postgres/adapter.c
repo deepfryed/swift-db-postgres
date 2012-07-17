@@ -2,6 +2,7 @@
 
 // (c) Bharanee Rathna 2012
 
+#include <stdio.h>
 #include "adapter.h"
 #include "typecast.h"
 
@@ -383,6 +384,138 @@ VALUE db_postgres_adapter_query(int argc, VALUE *argv, VALUE self) {
         return Qtrue;
 }
 
+VALUE db_postgres_adapter_write(int argc, VALUE *argv, VALUE self) {
+    char *sql;
+    VALUE table, fields, io, data;
+    PGresult *result;
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+
+    if (argc < 1 || argc > 3)
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 1..3)", argc);
+
+    fields = Qnil;
+    switch (argc) {
+        case 1: io    = argv[0]; break;
+        case 2: table = argv[0]; io = argv[1]; break;
+        case 3: table = argv[0]; fields = argv[1]; io = argv[2];
+    }
+
+    if (!NIL_P(fields) && TYPE(fields) != T_ARRAY)
+        rb_raise(eSwiftArgumentError, "fields needs to be an array");
+
+    if (argc > 1) {
+        sql = (char *)malloc(4096);
+        if (NIL_P(fields))
+            snprintf(sql, 4096, "copy %s from stdin", CSTRING(table));
+        else
+            snprintf(sql, 4096, "copy %s(%s) from stdin", CSTRING(table), CSTRING(rb_ary_join(fields, rb_str_new2(", "))));
+
+        result = PQexec(a->connection, sql);
+        free(sql);
+
+        db_postgres_check_result(result);
+        PQclear(result);
+    }
+
+    if (rb_respond_to(io, rb_intern("read"))) {
+        while (!NIL_P((data = rb_funcall(io, rb_intern("read"), 1, INT2NUM(4096))))) {
+            data = TO_S(data);
+            if (PQputCopyData(a->connection, RSTRING_PTR(data), RSTRING_LEN(data)) != 1)
+                rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
+        }
+        if (PQputCopyEnd(a->connection, 0) != 1)
+            rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
+    }
+    else {
+        io = TO_S(io);
+        if (PQputCopyData(a->connection, RSTRING_PTR(io), RSTRING_LEN(io)) != 1)
+            rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
+        if (PQputCopyEnd(a->connection, 0) != 1)
+            rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
+    }
+
+    result = PQgetResult(a->connection);
+    db_postgres_check_result(result);
+    if (!result)
+        rb_raise(eSwiftRuntimeError, "invalid result at the end of COPY command");
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+}
+
+VALUE db_postgres_adapter_read(int argc, VALUE *argv, VALUE self) {
+    int n, done = 0;
+    char *sql, *data;
+    PGresult *result;
+    VALUE table, fields, io;
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+
+    if (argc > 3)
+        rb_raise(rb_eArgError, "wrong number of arguments (%d for 0..3)", argc);
+
+    table = fields = io = Qnil;
+    switch (argc) {
+        case 0:
+            if (!rb_block_given_p())
+                rb_raise(eSwiftArgumentError, "#read needs an IO object to write to or a block to call");
+            break;
+        case 1:
+            if (rb_respond_to(argv[0], rb_intern("write")))
+                io = argv[0];
+            else
+                table = argv[0];
+            break;
+        case 2:
+            table = argv[0];
+            io    = argv[1];
+            if (!rb_respond_to(io, rb_intern("write")))
+                rb_raise(eSwiftArgumentError, "#read needs an IO object that responds to #write");
+            break;
+        case 3:
+            table  = argv[0];
+            fields = argv[1];
+            io     = argv[2];
+            if (!rb_respond_to(io, rb_intern("write")))
+                rb_raise(eSwiftArgumentError, "#read needs an IO object that responds to #write");
+            if (TYPE(fields) != T_ARRAY)
+                rb_raise(eSwiftArgumentError, "fields needs to be an array");
+    }
+
+
+    if (!NIL_P(table)) {
+        sql = (char *)malloc(4096);
+        if (NIL_P(fields))
+            snprintf(sql, 4096, "copy %s to stdout", CSTRING(table));
+        else
+            snprintf(sql, 4096, "copy %s(%s) to stdout", CSTRING(table), CSTRING(rb_ary_join(fields, rb_str_new2(", "))));
+
+        result = PQexec(a->connection, sql);
+        free(sql);
+
+        db_postgres_check_result(result);
+        PQclear(result);
+    }
+
+    while (!done) {
+        switch ((n = PQgetCopyData(a->connection, &data, 0))) {
+            case -1: done = 1; break;
+            case -2: rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
+            default:
+                if (n > 0) {
+                    if (NIL_P(io))
+                        rb_yield(rb_str_new(data, n));
+                    else
+                        rb_funcall(io, rb_intern("write"), 1, rb_str_new(data, n));
+                    PQfreemem(data);
+                }
+        }
+    }
+
+    result = PQgetResult(a->connection);
+    db_postgres_check_result(result);
+    if (!result)
+        rb_raise(eSwiftRuntimeError, "invalid result at the end of COPY command");
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+}
+
 void init_swift_db_postgres_adapter() {
     rb_require("etc");
     sUser  = rb_funcall(CONST_GET(rb_mKernel, "Etc"), rb_intern("getlogin"), 0);
@@ -403,6 +536,8 @@ void init_swift_db_postgres_adapter() {
     rb_define_method(cDPA, "fileno",      db_postgres_adapter_fileno,       0);
     rb_define_method(cDPA, "query",       db_postgres_adapter_query,       -1);
     rb_define_method(cDPA, "result",      db_postgres_adapter_result,       0);
+    rb_define_method(cDPA, "write",       db_postgres_adapter_write,       -1);
+    rb_define_method(cDPA, "read",        db_postgres_adapter_read,        -1);
 
     rb_global_variable(&sUser);
 }

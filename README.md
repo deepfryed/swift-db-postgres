@@ -24,11 +24,16 @@ MRI adapter for PostgreSQL
     #closed?
     #escape(text)
 
-    Asynchronous API (see test/test_async.rb)
+    Asynchronous API (see test/test_async.rb):
 
     #query(sql, *bind)
     #fileno
     #result
+
+    Data I/O (see test/test_adapter.rb):
+
+    #write(table = nil, fields = nil, io_or_string)
+    #read(table = nil, fields = nil, io = nil, &block)
 
   Swift::DB::Postgres::Statement
     .new(Swift::DB::Postgres, sql)
@@ -50,6 +55,8 @@ MRI adapter for PostgreSQL
 ### Synchronous
 
 ```ruby
+require 'swift/db/postgres'
+
 db = Swift::DB::Postgres.new(db: 'swift_test')
 
 db.execute('drop table if exists users')
@@ -64,6 +71,8 @@ db.execute('select * from users').first #=> {:id => 1, :name => 'test', :age => 
 Hint: You can use `Adapter#fileno` and `EventMachine.watch` if you need to use this with EventMachine.
 
 ```ruby
+require 'swift/db/postgres'
+
 rows = []
 pool = 3.times.map {Swift::DB::Postgres.new(db: 'swift_test')}
 
@@ -75,6 +84,30 @@ end
 
 Thread.list.reject {|thread| Thread.current == thread}.each(&:join)
 rows #=> [3, 2, 1]
+
+### Data I/O commands
+
+The adapter supports data read and write via COPY command.
+
+```ruby
+require 'swift/db/postgres'
+
+db = Swift::DB::Postgres.new(db: 'swift_test')
+db.execute('drop table if exists users')
+db.execute('create table users (id serial, name text)')
+
+db.write('users', %w{name}, "foo\nbar\nbaz\n")
+db.write('users', %w{name}, StringIO.new("foo\nbar\nbaz\n"))
+db.write('users', %w{name}, File.open("users.dat"))
+
+
+db.read('users', %w{name}) do |data|
+  p data
+end
+
+csv = File.open('users.csv', 'w')
+db.execute('copy users to stdout with csv')
+db.read(csv)
 ```
 ## License
 

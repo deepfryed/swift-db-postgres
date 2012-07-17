@@ -72,7 +72,10 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
         r->insert_id = PQgetisnull(result, 0, 0) ? 0 : atol(PQgetvalue(result, 0, 0));
 
     for (n = 0; n < cols; n++) {
-        rb_ary_push(r->fields, ID2SYM(rb_intern(PQfname(result, n))));
+        /* this must be a command execution result without field information */
+        if (!(data = PQfname(result, n)))
+            break;
+        rb_ary_push(r->fields, ID2SYM(rb_intern(data)));
         switch (PQftype(result, n)) {
             case   16: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_BOOLEAN)); break;
             case   17: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_BLOB)); break;

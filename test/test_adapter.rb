@@ -1,6 +1,6 @@
 require 'helper'
 
-describe 'postgres adapter' do
+ describe 'postgres adapter' do
   it 'should initialize' do
     assert db
   end
@@ -41,6 +41,11 @@ describe 'postgres adapter' do
     result = db.execute('delete from users')
     assert_equal 0, result.selected_rows
     assert_equal 1, result.affected_rows
+
+    # empty result should have field & type information
+    result = db.execute('select * from users')
+    assert_equal %w(id name age created_at).map(&:to_sym), result.fields
+    assert_equal %w(integer text integer timestamp), result.types
   end
 
   it 'should close handle' do
@@ -66,5 +71,36 @@ describe 'postgres adapter' do
 
   it 'should escape whatever' do
     assert_equal "foo''bar", db.escape("foo'bar")
+  end
+
+  it 'should support #write and #read' do
+    assert db.execute('drop table if exists users')
+    assert db.execute("create table users(id serial primary key, name text)")
+
+    assert_equal 3, db.write('users', %w(name), "foo\nbar\nbaz\n").affected_rows
+    assert_equal 3, db.execute('select count(*) as count from users').first[:count]
+
+    assert db.execute('copy users(name) from stdin')
+    assert_equal 3, db.write("foo\nbar\nbaz\n").affected_rows
+    assert_equal 6, db.execute('select count(*) as count from users').first[:count]
+
+    assert_equal 3, db.write('users', StringIO.new("7\tfoo\n8\tbar\n9\tbaz\n")).affected_rows
+    assert_equal 9, db.execute('select count(*) as count from users').first[:count]
+
+    io = StringIO.new
+    db.execute('copy (select * from users order by id limit 1) to stdout with csv')
+    assert_equal 1, db.read(io).affected_rows
+
+    assert_match %r{1,foo\n}, io.tap(&:rewind).read
+
+    rows = []
+    db.read('users') {|row| rows << row}
+
+    expect = (%w(foo bar baz)*3).zip(1..9).map {|r| r.reverse.join("\t") + "\n"}
+    assert_equal expect, rows
+
+    assert_raises(Swift::RuntimeError) { db.write("foo") }
+    assert_raises(Swift::RuntimeError) { db.write("users", "bar") }
+    assert_raises(Swift::RuntimeError) { db.write("users", %w(name), "bar") }
   end
 end
