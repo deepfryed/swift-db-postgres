@@ -23,15 +23,9 @@ MRI adapter for PostgreSQL
     #close
     #closed?
     #escape(text)
-
-    Asynchronous API (see test/test_async.rb):
-
     #query(sql, *bind)
     #fileno
     #result
-
-    Data I/O (see test/test_adapter.rb):
-
     #write(table = nil, fields = nil, io_or_string)
     #read(table = nil, fields = nil, io = nil, &block)
 
@@ -49,6 +43,23 @@ MRI adapter for PostgreSQL
     #insert_id
 ```
 
+### Asynchronous API
+
+```
+  Swift::DB::Postgres
+    #query(sql, *bind)
+    #fileno
+    #result
+```
+
+### Data I/O API
+
+```
+  Swift::DB::Postgres
+    #write(table = nil, fields = nil, io_or_string)
+    #read(table = nil, fields = nil, io = nil, &block)
+```
+
 ## Example
 
 
@@ -60,10 +71,10 @@ require 'swift/db/postgres'
 db = Swift::DB::Postgres.new(db: 'swift_test')
 
 db.execute('drop table if exists users')
-db.execute('create table users (id serial primary key, name text, age integer, created_at timestamp)')
+db.execute('create table users (id serial, name text, age integer, created_at timestamp)')
 db.execute('insert into users(name, age, created_at) values(?, ?, ?)', 'test', 30, Time.now.utc)
 
-db.execute('select * from users').first #=> {:id => 1, :name => 'test', :age => 30, :created_at=> #<Swift::DateTime>}
+p db.execute('select * from users').first #=> {:id => 1, :name => 'test', :age => 30, :created_at=> #<Swift::DateTime>}
 ```
 
 ### Asynchronous
@@ -78,14 +89,17 @@ pool = 3.times.map {Swift::DB::Postgres.new(db: 'swift_test')}
 
 3.times do |n|
   Thread.new do
-    pool[n].query("select pg_sleep(#{(3 - n) / 10.0}), #{n + 1} as query_id") {|row| rows << row[:query_id]}
+    pool[n].query("select pg_sleep(#{(3 - n) / 10.0}), #{n + 1} as query_id") do |row|
+      rows << row[:query_id]
+    end
   end
 end
 
 Thread.list.reject {|thread| Thread.current == thread}.each(&:join)
 rows #=> [3, 2, 1]
+```
 
-### Data I/O commands
+### Data I/O
 
 The adapter supports data read and write via COPY command.
 
