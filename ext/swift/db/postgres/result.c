@@ -31,11 +31,11 @@ Result* db_postgres_result_handle(VALUE self) {
 
 void db_postgres_result_mark(Result *r) {
     if (r) {
-        if (!NIL_P(r->fields))
+        if (r->fields)
             rb_gc_mark_maybe(r->fields);
-        if (!NIL_P(r->types))
+        if (r->types)
             rb_gc_mark_maybe(r->types);
-        if (!NIL_P(r->rows))
+        if (r->rows)
             rb_gc_mark_maybe(r->rows);
     }
 }
@@ -50,6 +50,7 @@ VALUE db_postgres_result_deallocate(Result *r) {
 
 VALUE db_postgres_result_allocate(VALUE klass) {
     Result *r = (Result*)malloc(sizeof(Result));
+    memset(r, 0, sizeof(Result));
     return Data_Wrap_Struct(klass, db_postgres_result_mark, db_postgres_result_deallocate, r);
 }
 
@@ -76,6 +77,7 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
         if (!(data = PQfname(result, n)))
             break;
         rb_ary_push(r->fields, ID2SYM(rb_intern(data)));
+
         switch (PQftype(result, n)) {
             case   16: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_BOOLEAN)); break;
             case   17: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_BLOB)); break;
@@ -101,6 +103,9 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
 VALUE db_postgres_result_each(VALUE self) {
     int row, col;
     Result *r = db_postgres_result_handle(self);
+
+    if (!r->result)
+        return Qnil;
 
     for (row = 0; row < PQntuples(r->result); row++) {
         VALUE tuple = rb_hash_new();
@@ -136,12 +141,12 @@ VALUE db_postgres_result_affected_rows(VALUE self) {
 
 VALUE db_postgres_result_fields(VALUE self) {
     Result *r = db_postgres_result_handle(self);
-    return r->fields;
+    return r->fields ? r->fields : rb_ary_new();
 }
 
 VALUE db_postgres_result_types(VALUE self) {
     Result *r = db_postgres_result_handle(self);
-    return typecast_description(r->types);
+    return r->types ? typecast_description(r->types) : rb_ary_new();
 }
 
 VALUE db_postgres_result_insert_id(VALUE self) {

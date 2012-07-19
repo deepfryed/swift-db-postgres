@@ -29,6 +29,13 @@ Statement* db_postgres_statement_handle(VALUE self) {
     return s;
 }
 
+Statement* db_postgres_statement_handle_safe(VALUE self) {
+    Statement *s = db_postgres_statement_handle(self);
+    if (!s->adapter)
+        rb_raise(eSwiftRuntimeError, "Invalid postgres statement: no associated adapter");
+    return s;
+}
+
 void db_postgres_statement_mark(Statement *s) {
     if (s && s->adapter)
         rb_gc_mark_maybe(s->adapter);
@@ -41,6 +48,7 @@ VALUE db_postgres_statement_deallocate(Statement *s) {
 
 VALUE db_postgres_statement_allocate(VALUE klass) {
     Statement *s = (Statement*)malloc(sizeof(Statement));
+    memset(s, 0, sizeof(Statement));
     return Data_Wrap_Struct(klass, db_postgres_statement_mark, db_postgres_statement_deallocate, s);
 }
 
@@ -66,7 +74,7 @@ VALUE db_postgres_statement_release(VALUE self) {
     PGresult *result;
     PGconn *connection;
 
-    Statement *s = db_postgres_statement_handle(self);
+    Statement *s = db_postgres_statement_handle_safe(self);
     connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
 
     if (connection && PQstatus(connection) == CONNECTION_OK) {
@@ -92,7 +100,7 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
     int n, *bind_args_size = 0, *bind_args_fmt = 0;
     VALUE bind, data;
 
-    Statement *s = db_postgres_statement_handle(self);
+    Statement *s = db_postgres_statement_handle_safe(self);
     connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
 
     rb_scan_args(argc, argv, "00*", &bind);
