@@ -393,15 +393,25 @@ VALUE db_postgres_adapter_write(int argc, VALUE *argv, VALUE self) {
     if (argc < 1 || argc > 3)
         rb_raise(rb_eArgError, "wrong number of arguments (%d for 1..3)", argc);
 
-    fields = Qnil;
+    table = io = fields = Qnil;
     switch (argc) {
-        case 1: io    = argv[0]; break;
-        case 2: table = argv[0]; io = argv[1]; break;
-        case 3: table = argv[0]; fields = argv[1]; io = argv[2];
-    }
+        case 1:
+            io = argv[0];
+            break;
+        case 2:
+            table = argv[0];
+            io    = argv[1];
+            break;
+        case 3:
+            table  = argv[0];
+            fields = argv[1];
+            io     = argv[2];
 
-    if (!NIL_P(fields) && TYPE(fields) != T_ARRAY)
-        rb_raise(eSwiftArgumentError, "fields needs to be an array");
+            if (TYPE(fields) != T_ARRAY)
+                rb_raise(eSwiftArgumentError, "fields needs to be an array");
+            if (RARRAY_LEN(fields) < 1)
+                fields = Qnil;
+    }
 
     if (argc > 1) {
         sql = (char *)malloc(4096);
@@ -477,6 +487,8 @@ VALUE db_postgres_adapter_read(int argc, VALUE *argv, VALUE self) {
                 rb_raise(eSwiftArgumentError, "#read needs an IO object that responds to #write");
             if (TYPE(fields) != T_ARRAY)
                 rb_raise(eSwiftArgumentError, "fields needs to be an array");
+            if (RARRAY_LEN(fields) < 1)
+                fields = Qnil;
     }
 
 
