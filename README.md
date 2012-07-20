@@ -8,6 +8,7 @@ MRI adapter for PostgreSQL
 * Result typecasting
 * Prepared statements
 * Asynchronous support using PQsendQuery family of functions
+* Nested transactions
 
 ## API
 
@@ -45,9 +46,6 @@ MRI adapter for PostgreSQL
 
 ## Example
 
-
-### Synchronous
-
 ```ruby
 require 'swift/db/postgres'
 
@@ -57,7 +55,8 @@ db.execute('drop table if exists users')
 db.execute('create table users (id serial, name text, age integer, created_at timestamp)')
 db.execute('insert into users(name, age, created_at) values(?, ?, ?)', 'test', 30, Time.now.utc)
 
-p db.execute('select * from users').first #=> {:id => 1, :name => 'test', :age => 30, :created_at=> #<Swift::DateTime>}
+row = db.execute('select * from users').first
+p row #=> {:id => 1, :name => 'test', :age => 30, :created_at=> #<Swift::DateTime>}
 ```
 
 ### Asynchronous
