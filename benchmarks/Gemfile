@@ -1,3 +1,4 @@
 source :rubygems
 gem 'pg'
+gem 'do_postgres'
 gem 'pg_typecast'
