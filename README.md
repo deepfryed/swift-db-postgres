@@ -43,23 +43,6 @@ MRI adapter for PostgreSQL
     #insert_id
 ```
 
-### Asynchronous API
-
-```
-  Swift::DB::Postgres
-    #query(sql, *bind)
-    #fileno
-    #result
-```
-
-### Data I/O API
-
-```
-  Swift::DB::Postgres
-    #write(table = nil, fields = nil, io_or_string)
-    #read(table = nil, fields = nil, io = nil, &block)
-```
-
 ## Example
 
 
