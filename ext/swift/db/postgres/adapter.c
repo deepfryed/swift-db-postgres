@@ -50,9 +50,20 @@ VALUE db_postgres_adapter_notice(VALUE self, char *message) {
     return Qtrue;
 }
 
+void append_ssl_option(char *buffer, int size, VALUE ssl, char *key, char *fallback) {
+    int offset = strlen(buffer);
+    VALUE option = rb_hash_aref(ssl, ID2SYM(rb_intern(key)));
+
+    if (NIL_P(option) && fallback)
+        snprintf(buffer + offset, size - offset, " %s='%s'", key, fallback);
+
+    if (!NIL_P(option))
+        snprintf(buffer + offset, size - offset, " %s='%s'", key, CSTRING(option));
+}
+
 VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
-    char connection_info[1024];
-    VALUE db, user, pass, host, port;
+    char *connection_info;
+    VALUE db, user, pass, host, port, ssl;
     Adapter *a = db_postgres_adapter_handle(self);
 
     if (TYPE(options) != T_HASH)
@@ -63,6 +74,7 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     pass = rb_hash_aref(options, ID2SYM(rb_intern("pass")));
     host = rb_hash_aref(options, ID2SYM(rb_intern("host")));
     port = rb_hash_aref(options, ID2SYM(rb_intern("port")));
+    ssl  = rb_hash_aref(options, ID2SYM(rb_intern("ssl")));
 
     if (NIL_P(db))
         rb_raise(eSwiftConnectionError, "Invalid db name");
@@ -73,10 +85,23 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     if (NIL_P(user))
         user = sUser;
 
-    snprintf(connection_info, 1024, "dbname='%s' user='%s' password='%s' host='%s' port='%s' sslmode='allow'",
+    if (!NIL_P(ssl) && TYPE(ssl) != T_HASH)
+            rb_raise(eSwiftArgumentError, "ssl options needs to be a hash");
+
+    connection_info = (char *)malloc(4096);
+    snprintf(connection_info, 4096, "dbname='%s' user='%s' password='%s' host='%s' port='%s'",
         CSTRING(db), CSTRING(user), CSTRING(pass), CSTRING(host), CSTRING(port));
 
+    if (!NIL_P(ssl)) {
+        append_ssl_option(connection_info, 4096, ssl, "sslmode",      "allow");
+        append_ssl_option(connection_info, 4096, ssl, "sslcert",      0);
+        append_ssl_option(connection_info, 4096, ssl, "sslkey",       0);
+        append_ssl_option(connection_info, 4096, ssl, "sslrootcert",  0);
+        append_ssl_option(connection_info, 4096, ssl, "sslcrl",       0);
+    }
+
     a->connection = PQconnectdb(connection_info);
+    free(connection_info);
 
     if (!a->connection)
         rb_raise(eSwiftRuntimeError, "unable to allocate database handle");
