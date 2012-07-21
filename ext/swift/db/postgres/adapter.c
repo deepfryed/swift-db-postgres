@@ -40,8 +40,7 @@ VALUE db_postgres_adapter_deallocate(Adapter *a) {
 VALUE db_postgres_adapter_allocate(VALUE klass) {
     Adapter *a = (Adapter*)malloc(sizeof(Adapter));
 
-    a->connection = 0;
-    a->t_nesting  = 0;
+    memset(a, 0, sizeof(Adapter));
     return Data_Wrap_Struct(klass, 0, db_postgres_adapter_deallocate, a);
 }
 

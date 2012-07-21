@@ -114,6 +114,10 @@ Don't read too much into it. Each library has its advantages and disadvantages.
 * pg uses the pg_typecast extension
 
 ```
+$ ruby -v
+
+ruby 1.9.3p125 (2012-02-16 revision 34643) [x86_64-linux]
+
 $ ruby check.rb
                           user     system      total        real
 do_postgres insert     0.190000   0.080000   0.270000 (  0.587877)
