@@ -21,6 +21,7 @@ MRI adapter for PostgreSQL
     #commit(savepoint = nil)
     #rollback(savepoint = nil)
     #transaction(savepoint = nil, &block)
+    #ping
     #close
     #closed?
     #escape(text)
