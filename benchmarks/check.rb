@@ -21,21 +21,18 @@ queries = {
     drop:   'drop table if exists users',
     create: 'create table users(id serial primary key, name text, created_at timestamp with time zone)',
     insert: 'insert into users(name, created_at) values ($1, $2)',
-    update: 'update users set name = $1, created_at = $2 where id = $3',
     select: 'select * from users where id > $1'
   },
   swift: {
     drop:   'drop table if exists users',
     create: 'create table users(id serial primary key, name text, created_at timestamp with time zone)',
     insert: 'insert into users(name, created_at) values (?, ?)',
-    update: 'update users set name = ?, created_at = ? where id = ?',
     select: 'select * from users where id > ?'
   },
   do_postgres: {
     drop:   'drop table if exists users',
     create: 'create table users(id serial primary key, name text, created_at timestamp with time zone)',
     insert: 'insert into users(name, created_at) values (?, ?)',
-    update: 'update users set name = ?, created_at = ? where id = ?',
     select: 'select * from users where id > ?'
   }
 }
