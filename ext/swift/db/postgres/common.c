@@ -3,7 +3,6 @@
 // (c) Bharanee Rathna 2012
 
 #include "common.h"
-#include <ctype.h>
 #include <uuid/uuid.h>
 
 VALUE rb_uuid_string() {
@@ -22,16 +21,14 @@ VALUE rb_uuid_string() {
 /* NOTE: very naive, no regex etc. */
 /* TODO: a better ragel based replace thingamajigy */
 VALUE db_postgres_normalized_sql(VALUE sql) {
-    int i = 0, j = 0, n = 1, valid = 1;
+    int i = 0, j = 0, n = 1;
     char normalized[RSTRING_LEN(sql) * 2], *ptr = RSTRING_PTR(sql);
 
     while (i < RSTRING_LEN(sql)) {
-        if (*ptr == '?' && valid == 1)
+        if (*ptr == '?')
             j += snprintf(normalized + j, 4, "$%d", n++);
         else
             normalized[j++] = *ptr;
-
-        valid = isalnum(*ptr) || (*ptr == ' ' && valid == 0) ? 0 : 1;
         ptr++;
         i++;
     }
