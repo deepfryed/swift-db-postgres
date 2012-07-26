@@ -105,4 +105,18 @@ require 'helper'
     assert_raises(Swift::RuntimeError) { db.write("users", "bar") }
     assert_raises(Swift::RuntimeError) { db.write("users", %w(name), "bar") }
   end
+
+  it 'should not escape hstore operator' do
+    assert db.execute('create extension if not exists hstore')
+    assert db.execute('drop table if exists hstore_test')
+    assert db.execute('create table hstore_test(id int, payload hstore)')
+    assert db.execute('insert into hstore_test values(1, ?)', 'a => 1, b => 2')
+
+    assert_equal 1, db.execute('select * from hstore_test where payload ? $1', 'a').selected_rows
+    assert_equal 0, db.execute('select * from hstore_test where payload ? $1', 'c').selected_rows
+    assert_equal 1, db.execute('select * from hstore_test where payload ? ?',  'a').selected_rows
+
+    assert_equal 1, db.execute('select * from hstore_test where payload ?| ARRAY[?, ?]', 'a', 'b').selected_rows
+    assert_equal 1, db.execute('select * from hstore_test where payload ?& ARRAY[?, ?]', 'a', 'b').selected_rows
+  end
 end
