@@ -70,7 +70,7 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
 
     db   = rb_hash_aref(options, ID2SYM(rb_intern("db")));
     user = rb_hash_aref(options, ID2SYM(rb_intern("user")));
-    pass = rb_hash_aref(options, ID2SYM(rb_intern("pass")));
+    pass = rb_hash_aref(options, ID2SYM(rb_intern("password")));
     host = rb_hash_aref(options, ID2SYM(rb_intern("host")));
     port = rb_hash_aref(options, ID2SYM(rb_intern("port")));
     ssl  = rb_hash_aref(options, ID2SYM(rb_intern("ssl")));
@@ -137,6 +137,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
 
+        rb_gc_register_address(&bind);
         for (n = 0; n < RARRAY_LEN(bind); n++) {
             data = rb_ary_entry(bind, n);
             if (NIL_P(data)) {
@@ -166,6 +167,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         };
 
         pg_result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
+        rb_gc_unregister_address(&bind);
         free(bind_args_size);
         free(bind_args_data);
         free(bind_args_fmt);
