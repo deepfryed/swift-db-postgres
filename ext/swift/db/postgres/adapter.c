@@ -130,7 +130,8 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     Adapter *a = db_postgres_adapter_handle_safe(self);
 
     rb_scan_args(argc, argv, "10*", &sql, &bind);
-    sql = db_postgres_normalized_sql(sql);
+    if (!a->native)
+        sql = db_postgres_normalized_sql(sql);
 
     if (RARRAY_LEN(bind) > 0) {
         bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
@@ -361,6 +362,26 @@ VALUE db_postgres_adapter_result(VALUE self) {
     return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
 }
 
+VALUE db_postgres_adapter_native(VALUE self) {
+    int status, native;
+    VALUE result;
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+
+    native    = a->native;
+    a->native = 1;
+    result = rb_protect(rb_yield, Qnil, &status);
+    a->native = native;
+    if (status)
+        rb_jump_tag(status);
+    return result;
+}
+
+VALUE db_postgres_adapter_native_set(VALUE self, VALUE flag) {
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    a->native = Qtrue == flag ? 1 : 0;
+    return flag;
+}
+
 VALUE db_postgres_adapter_query(int argc, VALUE *argv, VALUE self) {
     VALUE sql, bind, data;
     char **bind_args_data = 0;
@@ -368,7 +389,8 @@ VALUE db_postgres_adapter_query(int argc, VALUE *argv, VALUE self) {
     Adapter *a = db_postgres_adapter_handle_safe(self);
 
     rb_scan_args(argc, argv, "10*", &sql, &bind);
-    sql = db_postgres_normalized_sql(sql);
+    if (!a->native)
+        sql = db_postgres_normalized_sql(sql);
 
     if (RARRAY_LEN(bind) > 0) {
         bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
@@ -582,6 +604,9 @@ void init_swift_db_postgres_adapter() {
     rb_define_method(cDPA, "result",      db_postgres_adapter_result,       0);
     rb_define_method(cDPA, "write",       db_postgres_adapter_write,       -1);
     rb_define_method(cDPA, "read",        db_postgres_adapter_read,        -1);
+
+    rb_define_method(cDPA, "native_bind_format",  db_postgres_adapter_native,     0);
+    rb_define_method(cDPA, "native_bind_format=", db_postgres_adapter_native_set, 1);
 
     rb_global_variable(&sUser);
 }

@@ -9,6 +9,7 @@
 typedef struct Adapter {
     PGconn *connection;
     int t_nesting;
+    int native;
 } Adapter;
 
 void init_swift_db_postgres_adapter();

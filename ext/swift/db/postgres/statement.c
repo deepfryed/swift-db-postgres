@@ -54,16 +54,17 @@ VALUE db_postgres_statement_allocate(VALUE klass) {
 
 VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
     PGresult *result;
-    PGconn *connection;
     Statement *s = db_postgres_statement_handle(self);
+    Adapter *a   = db_postgres_adapter_handle_safe(adapter);
 
     snprintf(s->id, 64, "s%s", CSTRING(rb_uuid_string()));
     s->adapter = adapter;
     rb_gc_mark(s->adapter);
 
-    connection = db_postgres_adapter_handle_safe(adapter)->connection;
-    result     = PQprepare(connection, s->id, CSTRING(db_postgres_normalized_sql(sql)), 0, 0);
+    if (!a->native)
+        sql = db_postgres_normalized_sql(sql);
 
+    result = PQprepare(a->connection, s->id, CSTRING(sql), 0, 0);
     db_postgres_check_result(result);
     PQclear(result);
     return self;

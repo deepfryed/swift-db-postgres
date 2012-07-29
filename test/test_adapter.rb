@@ -1,6 +1,6 @@
 require 'helper'
 
- describe 'postgres adapter' do
+describe 'postgres adapter' do
   it 'should initialize' do
     assert db
   end
@@ -109,19 +109,20 @@ require 'helper'
     assert_raises(Swift::RuntimeError) { db.write("users", %w(name), "bar") }
   end
 
-  # TODO
   it 'should not change the hstore ? operator' do
-    skip
     assert db.execute('create extension if not exists hstore')
     assert db.execute('drop table if exists hstore_test')
     assert db.execute('create table hstore_test(id int, payload hstore)')
     assert db.execute('insert into hstore_test values(1, ?)', 'a => 1, b => 2')
 
+    db.native_bind_format = true
     assert_equal 1, db.execute('select * from hstore_test where payload ? $1', 'a').selected_rows
     assert_equal 0, db.execute('select * from hstore_test where payload ? $1', 'c').selected_rows
-    assert_equal 1, db.execute('select * from hstore_test where payload ? ?',  'a').selected_rows
+    db.native_bind_format = false
 
-    assert_equal 1, db.execute('select * from hstore_test where payload ?| ARRAY[?, ?]', 'a', 'b').selected_rows
-    assert_equal 1, db.execute('select * from hstore_test where payload ?& ARRAY[?, ?]', 'a', 'b').selected_rows
+    db.native_bind_format do
+      assert_equal 1, db.execute('select * from hstore_test where payload ?| ARRAY[$1, $2]', 'a', 'b').selected_rows
+      assert_equal 1, db.execute('select * from hstore_test where payload ?& ARRAY[$1, $2]', 'a', 'b').selected_rows
+    end
   end
 end

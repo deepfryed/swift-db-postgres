@@ -21,6 +21,8 @@ MRI adapter for PostgreSQL
     #commit(savepoint = nil)
     #rollback(savepoint = nil)
     #transaction(savepoint = nil, &block)
+    #native_bind_format(&block)
+    #native_bind_format=(value)
     #ping
     #close
     #closed?
@@ -43,6 +45,22 @@ MRI adapter for PostgreSQL
     #types
     #each
     #insert_id
+```
+
+## Bind parameters and hstore operators
+
+Swift::DB::Postgres uses '?' as a bind parameter and replaces them with the '$' equivalents. This causes issues when
+you try to use the HStore '?' operator. You can permanently or temporarily disable the replacement strategy as below:
+
+```ruby
+
+db.native_bind_format = true
+db.execute("select * from users where tags ? $1", 'mayor')
+db.native_bind_format = false
+
+db.native_bind_format do
+  db.execute("select * from users where tags ? $1", 'mayor')
+end
 ```
 
 ## Example

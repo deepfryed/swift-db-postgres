@@ -7,7 +7,7 @@ require 'rake/testtask'
 $rootdir = Pathname.new(__FILE__).dirname
 $gemspec = Gem::Specification.new do |s|
   s.name              = 'swift-db-postgres'
-  s.version           = '0.1.2'
+  s.version           = '0.2.0'
   s.date              = Date.today    
   s.authors           = ['Bharanee Rathna']
   s.email             = ['deepfryed@gmail.com']
