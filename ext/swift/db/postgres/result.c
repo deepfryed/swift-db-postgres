@@ -32,11 +32,9 @@ Result* db_postgres_result_handle(VALUE self) {
 void db_postgres_result_mark(Result *r) {
     if (r) {
         if (r->fields)
-            rb_gc_mark_maybe(r->fields);
+            rb_gc_mark(r->fields);
         if (r->types)
-            rb_gc_mark_maybe(r->types);
-        if (r->rows)
-            rb_gc_mark_maybe(r->rows);
+            rb_gc_mark(r->types);
     }
 }
 
@@ -61,7 +59,6 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
     Result *r    = db_postgres_result_handle(self);
     r->fields    = rb_ary_new();
     r->types     = rb_ary_new();
-    r->rows      = rb_ary_new();
     r->result    = result;
     r->affected  = atol(PQcmdTuples(result));
     r->selected  = PQntuples(result);
@@ -101,7 +98,7 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
 }
 
 VALUE db_postgres_result_each(VALUE self) {
-    int row, col;
+    int row, col, status;
     Result *r = db_postgres_result_handle(self);
 
     if (!r->result)
@@ -124,7 +121,11 @@ VALUE db_postgres_result_each(VALUE self) {
                 );
             }
         }
-        rb_yield(tuple);
+        rb_gc_register_address(&tuple);
+        rb_protect(rb_yield, tuple, &status);
+        rb_gc_unregister_address(&tuple);
+        if (status != 0)
+            rb_jump_tag(status);
     }
     return Qtrue;
 }

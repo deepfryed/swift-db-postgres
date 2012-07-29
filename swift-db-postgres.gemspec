@@ -2,11 +2,11 @@
 
 Gem::Specification.new do |s|
   s.name = "swift-db-postgres"
-  s.version = "0.2.0"
+  s.version = "0.2.1"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Bharanee Rathna"]
-  s.date = "2012-07-29"
+  s.date = "2012-07-30"
   s.description = "Swift adapter for PostgreSQL database"
   s.email = ["deepfryed@gmail.com"]
   s.extensions = ["ext/swift/db/postgres/extconf.rb"]

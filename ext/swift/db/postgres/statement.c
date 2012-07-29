@@ -38,7 +38,7 @@ Statement* db_postgres_statement_handle_safe(VALUE self) {
 
 void db_postgres_statement_mark(Statement *s) {
     if (s && s->adapter)
-        rb_gc_mark_maybe(s->adapter);
+        rb_gc_mark(s->adapter);
 }
 
 VALUE db_postgres_statement_deallocate(Statement *s) {
