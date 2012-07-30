@@ -123,7 +123,7 @@ VALUE db_postgres_result_each(VALUE self) {
         }
         rb_yield(tuple);
     }
-    return Qnil;
+    return Qtrue;
 }
 
 VALUE db_postgres_result_selected_rows(VALUE self) {
