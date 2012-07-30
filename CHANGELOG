@@ -1,3 +1,7 @@
+== 0.2.3 (2012-07-31)
+
+* remove rb_protect from Result#each.
+
 == 0.2.2 (2012-07-30)
 
 * removed rb_gc_mark called outside mark phase.
