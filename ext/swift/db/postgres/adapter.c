@@ -368,7 +368,7 @@ VALUE db_postgres_adapter_native(VALUE self) {
 
     native    = a->native;
     a->native = 1;
-    result = rb_protect(rb_yield, Qnil, &status);
+    result    = rb_protect(rb_yield, Qnil, &status);
     a->native = native;
     if (status)
         rb_jump_tag(status);

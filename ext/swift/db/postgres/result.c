@@ -98,7 +98,7 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
 
 VALUE db_postgres_result_each(VALUE self) {
     VALUE tuple;
-    int row, col, status;
+    int row, col;
     Result *r = db_postgres_result_handle(self);
 
     if (!r->result)
@@ -121,9 +121,7 @@ VALUE db_postgres_result_each(VALUE self) {
                 );
             }
         }
-        rb_protect(rb_yield, tuple, &status);
-        if (status != 0)
-            rb_jump_tag(status);
+        rb_yield(tuple);
     }
     return Qnil;
 }
