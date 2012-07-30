@@ -39,7 +39,6 @@ VALUE db_postgres_adapter_deallocate(Adapter *a) {
 
 VALUE db_postgres_adapter_allocate(VALUE klass) {
     Adapter *a = (Adapter*)malloc(sizeof(Adapter));
-
     memset(a, 0, sizeof(Adapter));
     return Data_Wrap_Struct(klass, 0, db_postgres_adapter_deallocate, a);
 }
@@ -125,7 +124,7 @@ VALUE nogvl_pq_exec_params(void *ptr) {
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     char **bind_args_data = 0;
     int n, *bind_args_size = 0, *bind_args_fmt = 0;
-    PGresult *pg_result;
+    PGresult *result;
     VALUE sql, bind, data;
     Adapter *a = db_postgres_adapter_handle_safe(self);
 
@@ -167,7 +166,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
             .format     = bind_args_fmt
         };
 
-        pg_result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
+        result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
         rb_gc_unregister_address(&bind);
         free(bind_args_size);
         free(bind_args_data);
@@ -175,11 +174,11 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     }
     else {
         Query q = {.connection = a->connection, .command = CSTRING(sql)};
-        pg_result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec, &q, RUBY_UBF_IO, 0);
+        result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec, &q, RUBY_UBF_IO, 0);
     }
 
-    db_postgres_check_result(pg_result);
-    return db_postgres_result_load(db_postgres_result_allocate(cDPR), pg_result);
+    db_postgres_check_result(result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
 }
 
 VALUE db_postgres_adapter_begin(int argc, VALUE *argv, VALUE self) {

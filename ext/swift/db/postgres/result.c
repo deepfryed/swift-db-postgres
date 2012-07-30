@@ -11,7 +11,6 @@ typedef struct Result {
     PGresult *result;
     VALUE fields;
     VALUE types;
-    VALUE rows;
     size_t selected;
     size_t affected;
     size_t insert_id;
@@ -98,6 +97,7 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
 }
 
 VALUE db_postgres_result_each(VALUE self) {
+    VALUE tuple;
     int row, col, status;
     Result *r = db_postgres_result_handle(self);
 
@@ -105,7 +105,7 @@ VALUE db_postgres_result_each(VALUE self) {
         return Qnil;
 
     for (row = 0; row < PQntuples(r->result); row++) {
-        VALUE tuple = rb_hash_new();
+        tuple = rb_hash_new();
         for (col = 0; col < PQnfields(r->result); col++) {
             if (PQgetisnull(r->result, row, col))
                 rb_hash_aset(tuple, rb_ary_entry(r->fields, col), Qnil);
@@ -121,13 +121,11 @@ VALUE db_postgres_result_each(VALUE self) {
                 );
             }
         }
-        rb_gc_register_address(&tuple);
         rb_protect(rb_yield, tuple, &status);
-        rb_gc_unregister_address(&tuple);
         if (status != 0)
             rb_jump_tag(status);
     }
-    return Qtrue;
+    return Qnil;
 }
 
 VALUE db_postgres_result_selected_rows(VALUE self) {

@@ -15,7 +15,7 @@ VALUE    db_postgres_result_load(VALUE, PGresult*);
 Adapter* db_postgres_adapter_handle_safe(VALUE);
 
 typedef struct Statement {
-    char id[64];
+    char id[128];
     VALUE adapter;
 } Statement;
 
@@ -57,9 +57,8 @@ VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
     Statement *s = db_postgres_statement_handle(self);
     Adapter *a   = db_postgres_adapter_handle_safe(adapter);
 
-    snprintf(s->id, 64, "s%s", CSTRING(rb_uuid_string()));
+    snprintf(s->id, 128, "s%s", CSTRING(rb_uuid_string()));
     s->adapter = adapter;
-    rb_gc_mark(s->adapter);
 
     if (!a->native)
         sql = db_postgres_normalized_sql(sql);
@@ -71,7 +70,7 @@ VALUE db_postgres_statement_initialize(VALUE self, VALUE adapter, VALUE sql) {
 }
 
 VALUE db_postgres_statement_release(VALUE self) {
-    char command[128];
+    char command[256];
     PGresult *result;
     PGconn *connection;
 
@@ -79,7 +78,7 @@ VALUE db_postgres_statement_release(VALUE self) {
     connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
 
     if (connection && PQstatus(connection) == CONNECTION_OK) {
-        snprintf(command, 128, "deallocate %s", s->id);
+        snprintf(command, 256, "deallocate %s", s->id);
         result = PQexec(connection, command);
         db_postgres_check_result(result);
         PQclear(result);
