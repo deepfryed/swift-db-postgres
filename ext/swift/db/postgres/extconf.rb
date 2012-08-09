@@ -22,12 +22,13 @@ lib_paths = %w(
   /sw/lib
 )
 
-(inc_paths << ENV['SPG_INCLUDE_DIRS']).compact!
-(lib_paths << ENV['SPG_LIBRARY_DIRS']).compact!
+uuid_inc,  uuid_lib  = dir_config('uuid',  '/usr/include/uuid', '/usr/lib')
+libpq_inc, libpq_lib = dir_config('postgresql')
 
-find_header('libpq-fe.h',  *inc_paths) or raise 'unable to locate postgresql headers set SPG_INCLUDE_DIRS'
-find_header('uuid/uuid.h', *inc_paths) or raise 'unable to locate uuid headers set SPG_INCLUDE_DIRS'
+find_header 'uuid/uuid.h', *inc_paths.dup.unshift(uuid_inc).compact
+find_header 'libpq-fe.h',  *inc_paths.dup.unshift(libpq_inc).compact
 
-find_library('pq',  'main', *lib_paths) or raise 'unable to locate postgresql lib set SPG_LIBRARY_DIRS'
-find_library('uuid','main', *lib_paths) or raise 'unable to locate uuid lib set SPG_LIBRARY_DIRS'
+find_library 'uuid', 'main', *lib_paths.dup.unshift(uuid_lib).compact
+find_library 'pq',   'main', *lib_paths.dup.unshift(libpq_lib).compact
+
 create_makefile('swift_db_postgres_ext')
