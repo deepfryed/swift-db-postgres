@@ -18,22 +18,33 @@ VALUE rb_uuid_string() {
     return rb_str_new(uuid_hex, sizeof(uuid_t) * 2 + 1);
 }
 
-/* NOTE: very naive, no regex etc. */
-/* TODO: a better ragel based replace thingamajigy */
+/* TODO: very naive, a better ragel based replace thingamajigy */
 VALUE db_postgres_normalized_sql(VALUE sql) {
-    int i = 0, j = 0, n = 1;
-    char normalized[RSTRING_LEN(sql) * 2], *ptr = RSTRING_PTR(sql);
+    VALUE result;
+    int i = 0, j = 0, n = 1, size;
+    char *normalized, *ptr = RSTRING_PTR(sql);
+
+    size       = RSTRING_LEN(sql) * 2;
+    normalized = (char *)malloc(size);
 
     while (i < RSTRING_LEN(sql)) {
         if (*ptr == '?')
-            j += snprintf(normalized + j, 4, "$%d", n++);
+            j += snprintf(normalized + j, 6, "$%d", n++);
         else
             normalized[j++] = *ptr;
+
+        if (j >= size - 6) {
+            size       = size * 2;
+            normalized = (char *)realloc(normalized, size);
+        }
+
         ptr++;
         i++;
     }
 
-    return rb_str_new(normalized, j);
+    result = rb_str_new(normalized, j);
+    free(normalized);
+    return result;
 }
 
 void db_postgres_check_result(PGresult *result) {

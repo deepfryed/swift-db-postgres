@@ -74,6 +74,20 @@ describe 'postgres adapter' do
     assert_raises(Swift::RuntimeError) { s.execute(1) }
   end
 
+  it 'should allow a statement with more than 99 placeholders' do
+    statement_placeholders = Array.new(100, "(?)").join(",")
+    data = Array.new(100, "test")
+
+    assert db.execute('drop table if exists users')
+    assert db.execute("create table users(id serial primary key, name text)")
+    assert db.execute("insert into users (name) values #{statement_placeholders}", *data)
+
+    res = db.execute("select * from users")
+
+    assert_equal 100, res.count
+    assert_equal ["test"], res.map {|u| u[:name] }.uniq
+  end
+
   it 'should escape whatever' do
     assert_equal "foo''bar", db.escape("foo'bar")
   end
