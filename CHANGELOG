@@ -1,3 +1,7 @@
+== 0.2.5 (2012-09-26)
+
+* allow more than 99 placeholders. contributor: @filterfish
+
 == 0.2.4 (2012-08-18)
 
 * gc protect bind args.
