@@ -5,6 +5,7 @@
 #include "statement.h"
 #include "adapter.h"
 #include "typecast.h"
+#include "gvl.h"
 
 /* declaration */
 
@@ -88,9 +89,10 @@ VALUE db_postgres_statement_release(VALUE self) {
     return Qfalse;
 }
 
-VALUE nogvl_pq_exec_prepared(void *ptr) {
+ GVL_NOLOCK_RETURN_TYPE nogvl_pq_exec_prepared(void *ptr) {
     Query *q = (Query *)ptr;
-    return (VALUE)PQexecPrepared(q->connection, q->command, q->n_args, (const char * const *)q->data, q->size, q->format, 0);
+    PGresult *r  = PQexecPrepared(q->connection, q->command, q->n_args, (const char * const *)q->data, q->size, q->format, 0);
+    return (GVL_NOLOCK_RETURN_TYPE)r;
 }
 
 VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
@@ -138,7 +140,7 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
             .format     = bind_args_fmt
         };
 
-        result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_prepared, &q, RUBY_UBF_IO, 0);
+        result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_prepared, &q, RUBY_UBF_IO, 0);
         rb_gc_unregister_address(&bind);
         free(bind_args_fmt);
         free(bind_args_size);
@@ -153,7 +155,7 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
             .size       = 0,
             .format     = 0
         };
-        result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_prepared, &q, RUBY_UBF_IO, 0);
+        result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_prepared, &q, RUBY_UBF_IO, 0);
     }
 
     db_postgres_check_result(result);

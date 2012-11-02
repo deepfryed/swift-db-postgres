@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include "adapter.h"
 #include "typecast.h"
+#include "gvl.h"
 
 /* declaration */
 VALUE cDPA, sUser;
@@ -111,14 +112,15 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     return self;
 }
 
-VALUE nogvl_pq_exec(void *ptr) {
+GVL_NOLOCK_RETURN_TYPE nogvl_pq_exec(void *ptr) {
     Query *q = (Query *)ptr;
-    return (VALUE)PQexec(q->connection, q->command);
+    return (GVL_NOLOCK_RETURN_TYPE)PQexec(q->connection, q->command);
 }
 
-VALUE nogvl_pq_exec_params(void *ptr) {
+GVL_NOLOCK_RETURN_TYPE nogvl_pq_exec_params(void *ptr) {
     Query *q = (Query *)ptr;
-    return (VALUE)PQexecParams(q->connection, q->command, q->n_args, 0, (const char * const *)q->data, q->size, q->format, 0);
+    PGresult * r = PQexecParams(q->connection, q->command, q->n_args, 0, (const char * const *)q->data, q->size, q->format, 0);
+    return (GVL_NOLOCK_RETURN_TYPE)r;
 }
 
 VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
@@ -166,7 +168,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
             .format     = bind_args_fmt
         };
 
-        result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
+        result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
         rb_gc_unregister_address(&bind);
         free(bind_args_size);
         free(bind_args_data);
@@ -174,7 +176,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     }
     else {
         Query q = {.connection = a->connection, .command = CSTRING(sql)};
-        result = (PGresult *)rb_thread_blocking_region(nogvl_pq_exec, &q, RUBY_UBF_IO, 0);
+        result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec, &q, RUBY_UBF_IO, 0);
     }
 
     db_postgres_check_result(result);
