@@ -2,15 +2,15 @@
 
 Gem::Specification.new do |s|
   s.name = "swift-db-postgres"
-  s.version = "0.2.6"
+  s.version = "0.2.7"
 
   s.required_rubygems_version = Gem::Requirement.new(">= 0") if s.respond_to? :required_rubygems_version=
   s.authors = ["Bharanee Rathna"]
-  s.date = "2012-11-03"
+  s.date = "2012-11-14"
   s.description = "Swift adapter for PostgreSQL database"
   s.email = ["deepfryed@gmail.com"]
   s.extensions = ["ext/swift/db/postgres/extconf.rb"]
-  s.files = ["ext/swift/db/postgres/datetime.c", "ext/swift/db/postgres/result.c", "ext/swift/db/postgres/statement.c", "ext/swift/db/postgres/typecast.c", "ext/swift/db/postgres/adapter.c", "ext/swift/db/postgres/common.c", "ext/swift/db/postgres/main.c", "ext/swift/db/postgres/typecast.h", "ext/swift/db/postgres/datetime.h", "ext/swift/db/postgres/result.h", "ext/swift/db/postgres/gvl.h", "ext/swift/db/postgres/common.h", "ext/swift/db/postgres/statement.h", "ext/swift/db/postgres/adapter.h", "ext/swift/db/postgres/extconf.rb", "test/test_ssl.rb", "test/test_adapter.rb", "test/test_encoding.rb", "test/test_async.rb", "test/helper.rb", "lib/swift/db/postgres.rb", "lib/swift-db-postgres.rb", "README.md", "CHANGELOG"]
+  s.files = ["ext/swift/db/postgres/datetime.c", "ext/swift/db/postgres/result.c", "ext/swift/db/postgres/adapter.c", "ext/swift/db/postgres/statement.c", "ext/swift/db/postgres/typecast.c", "ext/swift/db/postgres/main.c", "ext/swift/db/postgres/common.c", "ext/swift/db/postgres/typecast.h", "ext/swift/db/postgres/datetime.h", "ext/swift/db/postgres/result.h", "ext/swift/db/postgres/gvl.h", "ext/swift/db/postgres/common.h", "ext/swift/db/postgres/statement.h", "ext/swift/db/postgres/adapter.h", "ext/swift/db/postgres/extconf.rb", "test/test_ssl.rb", "test/test_adapter.rb", "test/test_encoding.rb", "test/test_async.rb", "test/helper.rb", "lib/swift/db/postgres.rb", "lib/swift-db-postgres.rb", "README.md", "CHANGELOG"]
   s.homepage = "http://github.com/deepfryed/swift-db-postgres"
   s.require_paths = ["lib", "ext"]
   s.rubygems_version = "1.8.24"

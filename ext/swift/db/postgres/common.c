@@ -3,6 +3,7 @@
 // (c) Bharanee Rathna 2012
 
 #include "common.h"
+#include <math.h>
 #include <uuid/uuid.h>
 
 VALUE rb_uuid_string() {
@@ -18,25 +19,21 @@ VALUE rb_uuid_string() {
     return rb_str_new(uuid_hex, sizeof(uuid_t) * 2 + 1);
 }
 
-/* TODO: very naive, a better ragel based replace thingamajigy */
+/* NOTE: very naive, no regex etc. */
 VALUE db_postgres_normalized_sql(VALUE sql) {
     VALUE result;
-    int i = 0, j = 0, n = 1, size;
-    char *normalized, *ptr = RSTRING_PTR(sql);
-
-    size       = RSTRING_LEN(sql) * 2;
-    normalized = (char *)malloc(size);
+    int i = 0, j = 0, n = 1, size = RSTRING_LEN(sql) * 2, digits;
+    char *ptr = RSTRING_PTR(sql), *normalized = malloc(size);
 
     while (i < RSTRING_LEN(sql)) {
         if (*ptr == '?')
-            j += snprintf(normalized + j, 6, "$%d", n++);
+            j += sprintf(normalized + j, "$%d", n++);
         else
             normalized[j++] = *ptr;
 
-        if (j >= size - 6) {
-            size       = size * 2;
-            normalized = (char *)realloc(normalized, size);
-        }
+        digits = (int)floor(log10(n)) + 2;
+        if (j + digits > size)
+            normalized = realloc(normalized, size += 4096);
 
         ptr++;
         i++;

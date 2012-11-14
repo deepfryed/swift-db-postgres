@@ -139,6 +139,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
 
+        rb_gc_disable();
         rb_gc_register_address(&bind);
         for (n = 0; n < RARRAY_LEN(bind); n++) {
             data = rb_ary_entry(bind, n);
@@ -170,6 +171,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
 
         result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
         rb_gc_unregister_address(&bind);
+        rb_gc_enable();
         free(bind_args_size);
         free(bind_args_data);
         free(bind_args_fmt);
