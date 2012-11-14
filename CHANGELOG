@@ -1,3 +1,8 @@
+== 0.2.6 (2012-11-14)
+
+* Ruby 2.x build fixes.
+* Pause GC around execute() with bind values.
+
 == 0.2.5 (2012-09-26)
 
 * allow more than 99 placeholders. contributor: @filterfish
