@@ -32,7 +32,7 @@ VALUE db_postgres_normalized_sql(VALUE sql) {
             normalized[j++] = *ptr;
 
         digits = (int)floor(log10(n)) + 2;
-        if (j + digits > size)
+        if (j + digits >= size)
             normalized = realloc(normalized, size += 4096);
 
         ptr++;
