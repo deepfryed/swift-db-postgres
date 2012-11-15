@@ -134,13 +134,13 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     if (!a->native)
         sql = db_postgres_normalized_sql(sql);
 
+    rb_gc_register_address(&sql);
+    rb_gc_register_address(&bind);
     if (RARRAY_LEN(bind) > 0) {
         bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
 
-        rb_gc_disable();
-        rb_gc_register_address(&bind);
         for (n = 0; n < RARRAY_LEN(bind); n++) {
             data = rb_ary_entry(bind, n);
             if (NIL_P(data)) {
@@ -156,7 +156,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
 
                 data = typecast_to_string(data);
                 bind_args_size[n] = RSTRING_LEN(data);
-                bind_args_data[n] = RSTRING_PTR(data);
+                bind_args_data[n] = CSTRING_PTR(data);
             }
         }
 
@@ -170,8 +170,9 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         };
 
         result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_params, &q, RUBY_UBF_IO, 0);
-        rb_gc_unregister_address(&bind);
-        rb_gc_enable();
+        for (n = 0; n < RARRAY_LEN(bind); n++)
+            if (bind_args_data[n])
+                free(bind_args_data[n]);
         free(bind_args_size);
         free(bind_args_data);
         free(bind_args_fmt);
@@ -181,6 +182,8 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
         result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec, &q, RUBY_UBF_IO, 0);
     }
 
+    rb_gc_unregister_address(&sql);
+    rb_gc_unregister_address(&bind);
     db_postgres_check_result(result);
     return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
 }
