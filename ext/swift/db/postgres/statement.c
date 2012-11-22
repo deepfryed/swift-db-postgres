@@ -100,14 +100,17 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
     PGconn *connection;
     char **bind_args_data = 0;
     int n, *bind_args_size = 0, *bind_args_fmt = 0;
-    VALUE bind, data;
+    VALUE bind, data, typecast_bind;
 
     Statement *s = db_postgres_statement_handle_safe(self);
     connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
 
     rb_scan_args(argc, argv, "00*", &bind);
 
+    typecast_bind = rb_ary_new();
+    rb_gc_register_address(&typecast_bind);
     rb_gc_register_address(&bind);
+
     if (RARRAY_LEN(bind) > 0) {
         bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
         bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
@@ -126,8 +129,9 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
                 else
                     bind_args_fmt[n] = 0;
                 data = typecast_to_string(data);
+                rb_ary_push(typecast_bind, data);
                 bind_args_size[n] = RSTRING_LEN(data);
-                bind_args_data[n] = CSTRING_PTR(data);
+                bind_args_data[n] = RSTRING_PTR(data);
             }
         }
 
@@ -141,9 +145,6 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
         };
 
         result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_prepared, &q, RUBY_UBF_IO, 0);
-        for (n = 0; n < RARRAY_LEN(bind); n++)
-            if (bind_args_data[n])
-                free(bind_args_data[n]);
         free(bind_args_fmt);
         free(bind_args_size);
         free(bind_args_data);
@@ -160,6 +161,7 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
         result = (PGresult *)GVL_NOLOCK(nogvl_pq_exec_prepared, &q, RUBY_UBF_IO, 0);
     }
 
+    rb_gc_unregister_address(&typecast_bind);
     rb_gc_unregister_address(&bind);
     db_postgres_check_result(result);
     return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);

@@ -6,12 +6,6 @@
 #include <math.h>
 #include <uuid/uuid.h>
 
-char* CSTRING_PTR(VALUE value) {
-    char* result = malloc(RSTRING_LEN(value) + 1);
-    memcpy(result, RSTRING_PTR(value), RSTRING_LEN(value) + 1);
-    return result;
-}
-
 VALUE rb_uuid_string() {
     size_t n;
     uuid_t uuid;
