@@ -62,7 +62,7 @@ void append_ssl_option(char *buffer, int size, VALUE ssl, char *key, char *fallb
 
 VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     char *connection_info;
-    VALUE db, user, pass, host, port, ssl;
+    VALUE db, user, pass, host, port, ssl, enc;
     Adapter *a = db_postgres_adapter_handle(self);
 
     if (TYPE(options) != T_HASH)
@@ -74,6 +74,7 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     host = rb_hash_aref(options, ID2SYM(rb_intern("host")));
     port = rb_hash_aref(options, ID2SYM(rb_intern("port")));
     ssl  = rb_hash_aref(options, ID2SYM(rb_intern("ssl")));
+    enc  = rb_hash_aref(options, ID2SYM(rb_intern("encoding")));
 
     if (NIL_P(db))
         rb_raise(eSwiftConnectionError, "Invalid db name");
@@ -83,6 +84,8 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
         port = rb_str_new2("5432");
     if (NIL_P(user))
         user = sUser;
+    if (NIL_P(enc))
+        enc = rb_str_new2("utf8");
 
     if (!NIL_P(ssl) && TYPE(ssl) != T_HASH)
             rb_raise(eSwiftArgumentError, "ssl options needs to be a hash");
@@ -108,7 +111,8 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
         rb_raise(eSwiftConnectionError, PQerrorMessage(a->connection));
 
     PQsetNoticeProcessor(a->connection, (PQnoticeProcessor)db_postgres_adapter_notice, (void*)self);
-    PQsetClientEncoding(a->connection, "utf8");
+    if (PQsetClientEncoding(a->connection, CSTRING(enc)) != 0)
+        rb_raise(eSwiftConnectionError, PQerrorMessage(a->connection));
     return self;
 }
 

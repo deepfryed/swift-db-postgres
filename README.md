@@ -47,6 +47,26 @@ MRI adapter for PostgreSQL
     #insert_id
 ```
 
+## Connection options
+
+```
+╭────────────────────╥────────────┬─────────────╮
+│ Name               ║  Default   │  Optional   │
+╞════════════════════╬════════════╪═════════════╡
+│ db                 ║  -         │  No         │
+│ host               ║  127.0.0.1 │  Yes        │
+│ port               ║  5432      │  Yes        │
+│ user               ║  Etc.login │  Yes        │
+│ password           ║  nil       │  Yes        │
+│ encoding           ║  utf8      │  Yes        │
+│ ssl[:sslmode]      ║  allow     │  Yes        │
+│ ssl[:sslcert]      ║  nil       │  Yes        │
+│ ssl[:sslkey]       ║  nil       │  Yes        │
+│ ssl[:sslrootcert]  ║  nil       │  Yes        │
+│ ssl[:sslcrl]       ║  nil       │  Yes        │
+└────────────────────╨────────────┴─────────────┘
+```
+
 ## Bind parameters and hstore operators
 
 Swift::DB::Postgres uses '?' as a bind parameter and replaces them with the '$' equivalents. This causes issues when
@@ -68,7 +88,7 @@ end
 ```ruby
 require 'swift/db/postgres'
 
-db = Swift::DB::Postgres.new(db: 'swift_test')
+db = Swift::DB::Postgres.new(db: 'swift_test', encoding: 'utf8')
 
 db.execute('drop table if exists users')
 db.execute('create table users (id serial, name text, age integer, created_at timestamp)')

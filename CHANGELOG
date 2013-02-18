@@ -1,3 +1,7 @@
+== 0.3.0 (2013-02-19)
+
+* supports encoding option while connecting. 
+
 == 0.2.7 (2012-11-22)
 
 * rb_gc_register_address() the bind values.

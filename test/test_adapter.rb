@@ -5,6 +5,14 @@ describe 'postgres adapter' do
     assert db
   end
 
+  it 'it should allow custom encoding' do
+    assert Swift::DB::Postgres.new(db: 'swift_test', encoding: 'utf8')
+  end
+
+  it 'should raise connection error on not so awesome encoding' do
+    assert_raises(Swift::ConnectionError) {Swift::DB::Postgres.new(db: 'swift_test', encoding: 'not_awesome')}
+  end
+
   it 'should execute sql' do
     assert db.execute("select * from pg_tables")
   end
