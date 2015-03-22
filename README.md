@@ -10,6 +10,18 @@ MRI adapter for PostgreSQL
 * Asynchronous support using PQsendQuery family of functions
 * Nested transactions
 
+## Requirements
+
+* postgresql client deveopment libraries (libpq-dev)
+* uuid development libraries (uuid-dev)
+
+## Building
+
+```
+git submodule update --init
+rake
+```
+
 ## API
 
 ```
