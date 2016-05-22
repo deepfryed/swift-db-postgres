@@ -5,15 +5,17 @@ $:.unshift File.dirname(__FILE__) + '/../lib'
 
 require 'bundler/setup'
 require 'pg'
-require 'pg_typecast'
 require 'do_postgres'
 require 'swift-db-postgres'
 require 'benchmark'
 
 dbs = {
-  do_postgres: DataObjects::Connection.new("postgres://127.0.0.1/swift_test"),
-  pg:          PG::Connection.new('dbname=swift_test').tap {|db| db.set_notice_processor {}},
   swift:       Swift::DB::Postgres.new(db: 'swift_test', ssl: {sslmode: 'disable'}),
+  do_postgres: DataObjects::Connection.new("postgres://127.0.0.1/swift_test"),
+  pg:          PG::Connection.new('dbname=swift_test').tap {|db|
+    db.type_map_for_results = PG::BasicTypeMapForResults.new(db)
+    db.set_notice_processor {}
+  }
 }
 
 queries = {

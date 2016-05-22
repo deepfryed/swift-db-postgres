@@ -159,26 +159,27 @@ db.read(csv)
 
 ## Performance
 
-Don't read too much into it. Each library has its advantages and disadvantages.
+Tests:
+* Insert 1000 rows
+* Read them back 100 times with typecast enabled
 
-* insert 1000 rows and read them back 100 times with typecast enabled
-* pg uses the pg_typecast extension
+Caveats:
+* This is just a raw performance benchmark, each library has its advantages and disadvantages.
 
 ```
 $ ruby -v
-
-ruby 1.9.3p125 (2012-02-16 revision 34643) [x86_64-linux]
+ruby 2.1.5p273 (2014-11-13 revision 48405) [x86_64-linux]
 
 $ ruby check.rb
-                          user     system      total        real
-do_postgres insert     0.190000   0.080000   0.270000 (  0.587877)
-do_postgres select     1.440000   0.020000   1.460000 (  2.081172)
+                           user     system      total        real
+swift insert           0.020000   0.000000   0.020000 (  0.090353)
+swift select           0.170000   0.000000   0.170000 (  0.268109)
 
-pg insert              0.100000   0.030000   0.130000 (  0.395280)
-pg select              0.630000   0.220000   0.850000 (  1.284905)
+do_postgres insert     0.020000   0.020000   0.040000 (  0.096619)
+do_postgres select     0.550000   0.000000   0.550000 (  0.659646)
 
-swift insert           0.070000   0.040000   0.110000 (  0.348211)
-swift select           0.640000   0.030000   0.670000 (  1.111561)
+pg insert              0.020000   0.000000   0.020000 (  0.069376)
+pg select              0.680000   0.030000   0.710000 (  0.819120)
 ```
 
 ## License

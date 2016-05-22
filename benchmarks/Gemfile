@@ -1,4 +1,3 @@
-source :rubygems
+source 'https://www.rubygems.org'
 gem 'pg'
 gem 'do_postgres'
-gem 'pg_typecast'
