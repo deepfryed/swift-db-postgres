@@ -1,6 +1,8 @@
 # Swift PostgreSQL adapter
 
-MRI adapter for PostgreSQL
+PostgreSQL adapter for MRI Ruby.
+
+NOTE: This has nothing to do with Swift programming language (OSX, iOS)
 
 ## Features
 
