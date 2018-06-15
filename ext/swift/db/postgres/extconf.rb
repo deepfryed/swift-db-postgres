@@ -22,6 +22,10 @@ lib_paths = %w(
   /sw/lib
 )
 
+# add paths for pg_config
+inc_paths.unshift(%x{pg_config --includedir}.strip) rescue nil
+lib_paths.unshift(%x{pg_config --libdir}.strip) rescue nil
+
 uuid_inc,  uuid_lib  = dir_config('uuid',  '/usr/include/uuid', '/usr/lib')
 libpq_inc, libpq_lib = dir_config('postgresql')
 
