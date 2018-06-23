@@ -123,22 +123,22 @@ listed below will be stringified on the way in to the database and returned as a
 string value on the way out.
 
 ```
-+-----------------+----------------------+
-| Ruby            | PostgreSQL           |
-+-----------------+----------------------+
-| TrueClass       | boolean              |
-| FalseClass      | boolean              |
-| Bignum          | bigint               |
-| Fixnum          | int                  |
-| Integer         | int                  |
-| Float           | float, double        |
-| BigDecimal      | numeric              |
-| Time            | timestamp            |
-| DateTime        | timestamp            |
-| String          | text                 |
-| Symbol          | text                 |
-| IO              | bytea                |
-+-----------------+----------------------+
+╭────────────────┬─────────────────────╮
+│ Ruby           │  PostgreSQL         │
+╞════════════════╪═════════════════════╡
+│ TrueClass      │  boolean            │
+│ FalseClass     │  boolean            │
+│ Bignum         │  bigint             │
+│ Fixnum         │  int                │
+│ Integer        │  int                │
+│ Float          │  float, double      │
+│ BigDecimal     │  numeric            │
+│ Time           │  timestamp          │
+│ DateTime       │  timestamp          │
+│ String         │  text               │
+│ Symbol         │  text               │
+│ IO             │  bytea              │
+└────────────────┴─────────────────────┘
 ```
 
 ### Custom encoder
