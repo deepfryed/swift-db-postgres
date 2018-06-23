@@ -11,6 +11,7 @@ typedef struct Result {
     PGresult *result;
     VALUE fields;
     VALUE types;
+    VALUE decoder;
     size_t selected;
     size_t affected;
     size_t insert_id;
@@ -43,6 +44,7 @@ VALUE db_postgres_result_deallocate(Result *r) {
             PQclear(r->result);
         free(r);
     }
+    return Qtrue;
 }
 
 VALUE db_postgres_result_allocate(VALUE klass) {
@@ -51,7 +53,7 @@ VALUE db_postgres_result_allocate(VALUE klass) {
     return Data_Wrap_Struct(klass, db_postgres_result_mark, db_postgres_result_deallocate, r);
 }
 
-VALUE db_postgres_result_load(VALUE self, PGresult *result) {
+VALUE db_postgres_result_load(VALUE self, PGresult *result, VALUE decoder) {
     size_t n, rows, cols;
     const char *type, *data;
 
@@ -62,6 +64,7 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
     r->affected  = atol(PQcmdTuples(result));
     r->selected  = PQntuples(result);
     r->insert_id = 0;
+    r->decoder   = decoder;
 
     rows = PQntuples(result);
     cols = PQnfields(result);
@@ -73,24 +76,7 @@ VALUE db_postgres_result_load(VALUE self, PGresult *result) {
         if (!(data = PQfname(result, n)))
             break;
         rb_ary_push(r->fields, ID2SYM(rb_intern(data)));
-
-        switch (PQftype(result, n)) {
-            case   16: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_BOOLEAN)); break;
-            case   17: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_BLOB)); break;
-            case   20:
-            case   21:
-            case   23: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_INT)); break;
-            case   25: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_TEXT)); break;
-            case  700:
-            case  701: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_FLOAT)); break;
-            case 1082: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_DATE)); break;
-            case 1114:
-            case 1184: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_TIMESTAMP)); break;
-            case 1700: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_NUMERIC)); break;
-            case 1083:
-            case 1266: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_TIME)); break;
-              default: rb_ary_push(r->types, INT2NUM(SWIFT_TYPE_TEXT));
-        }
+        rb_ary_push(r->types, INT2NUM(PQftype(result, n)));
     }
 
     return self;
@@ -110,15 +96,26 @@ VALUE db_postgres_result_each(VALUE self) {
             if (PQgetisnull(r->result, row, col))
                 rb_hash_aset(tuple, rb_ary_entry(r->fields, col), Qnil);
             else {
-                rb_hash_aset(
-                    tuple,
-                    rb_ary_entry(r->fields, col),
-                    typecast_detect(
-                        PQgetvalue(r->result, row, col),
-                        PQgetlength(r->result, row, col),
-                        NUM2INT(rb_ary_entry(r->types, col))
-                    )
-                );
+                size_t csize = PQgetlength(r->result, row, col);
+                const char *cvalue = PQgetvalue(r->result, row, col);
+                VALUE value = typecast_decode(cvalue, csize, NUM2INT(rb_ary_entry(r->types, col)));
+                if (NIL_P(value)) {
+                    if (r->decoder) {
+                        value = rb_funcall(
+                            r->decoder,
+                            rb_intern("call"),
+                            3,
+                            rb_ary_entry(r->fields, col),
+                            rb_ary_entry(r->types, col),
+                            rb_str_new(cvalue, csize)
+                        );
+                    }
+                    else {
+                        value = rb_str_new(cvalue, csize);
+                    }
+                }
+
+                rb_hash_aset(tuple, rb_ary_entry(r->fields, col), value);
             }
         }
         rb_yield(tuple);
@@ -151,6 +148,15 @@ VALUE db_postgres_result_insert_id(VALUE self) {
     return SIZET2NUM(r->insert_id);
 }
 
+VALUE db_postgres_result_clear(VALUE self) {
+    Result *r = db_postgres_result_handle(self);
+    if (r->result) {
+        PQclear(r->result);
+        r->result = NULL;
+    }
+    return Qtrue;
+}
+
 void init_swift_db_postgres_result() {
     rb_require("bigdecimal");
     rb_require("stringio");
@@ -166,4 +172,5 @@ void init_swift_db_postgres_result() {
     rb_define_method(cDPR, "fields",        db_postgres_result_fields,        0);
     rb_define_method(cDPR, "types",         db_postgres_result_types,         0);
     rb_define_method(cDPR, "insert_id",     db_postgres_result_insert_id,     0);
+    rb_define_method(cDPR, "clear",         db_postgres_result_clear,         0);
 }

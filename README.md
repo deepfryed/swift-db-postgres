@@ -46,6 +46,8 @@ rake
     #result
     #write(table = nil, fields = nil, io_or_string)
     #read(table = nil, fields = nil, io = nil, &block)
+    #encoder=
+    #decoder=
 
   Swift::DB::Postgres::Statement
     .new(Swift::DB::Postgres, sql)
@@ -59,6 +61,7 @@ rake
     #types
     #each
     #insert_id
+    #clear
 ```
 
 ## Connection options
@@ -110,6 +113,72 @@ db.execute('insert into users(name, age, created_at) values(?, ?, ?)', 'test', 3
 
 row = db.execute('select * from users').first
 p row #=> {:id => 1, :name => 'test', :age => 30, :created_at=> #<Swift::DateTime>}
+```
+
+### Typecast support
+
+The Adapter, Statement and Result classes understand the following Ruby and Postgres
+types and will attempt to typecast values in either direction appropriately. Types not
+listed below will be stringified on the way in to the database and returned as a raw
+string value on the way out.
+
+```
++-----------------+----------------------+
+| Ruby            | PostgreSQL           |
++-----------------+----------------------+
+| TrueClass       | boolean              |
+| FalseClass      | boolean              |
+| Bignum          | bigint               |
+| Fixnum          | int                  |
+| Integer         | int                  |
+| Float           | float, double        |
+| BigDecimal      | numeric              |
+| Time            | timestamp            |
+| DateTime        | timestamp            |
+| String          | text                 |
+| Symbol          | text                 |
+| IO              | bytea                |
++-----------------+----------------------+
+```
+
+### Custom encoder
+
+`Adapter#execute` or `Statement#execute` will attempt to encode bind values and
+then fallback to stringifying unsupported types using `Object#to_s`. This can
+be overriden with a customer encoder.
+
+e.g.
+
+```ruby
+db = Swift::DB::Postgres.new(db: 'swift_test')
+db.encoder = proc do |value|
+  case value
+    when Hash  then JSON.dump(value)
+    when Array then ...
+    else nil
+  end
+end
+```
+
+The encoder can be any object that implements `.call` and is passed the bind value. If the encoder returns
+`nil` then `#execute` will fallback to stringifying the value.
+
+
+### Custom decoder
+
+Logical inverse of above. Result#each attempts to decode known types but will return a raw string if it cannot
+decode a value. A decoder can be provided to extend the typecasting support, the decoder is passed in extra
+metadata hints to help including a field name and the Postgres OID.
+
+```ruby
+db = Swift::DB::Postgres.new(db: 'swift_test')
+db.decoder = proc do |field, oid, value|
+  case oid
+    when 114 then JSON.parse(value)
+    when 142 then Nokogiri::XML(value)
+    else nil
+  end
+end
 ```
 
 ### Asynchronous

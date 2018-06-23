@@ -10,7 +10,7 @@
 /* declaration */
 VALUE cDPA, sUser;
 VALUE db_postgres_result_each(VALUE);
-VALUE db_postgres_result_load(VALUE, PGresult *);
+VALUE db_postgres_result_load(VALUE, PGresult *, VALUE decoder);
 VALUE db_postgres_result_allocate(VALUE);
 VALUE db_postgres_statement_allocate(VALUE);
 VALUE db_postgres_statement_initialize(VALUE, VALUE, VALUE);
@@ -32,10 +32,22 @@ Adapter* db_postgres_adapter_handle_safe(VALUE self) {
 }
 
 VALUE db_postgres_adapter_deallocate(Adapter *a) {
-    if (a && a->connection)
-        PQfinish(a->connection);
-    if (a)
+    if (a) {
+        if (a->connection) {
+            PQfinish(a->connection);
+            a->connection = NULL;
+        }
+        if (a->encoder) {
+            rb_gc_unregister_address(&a->encoder);
+            a->encoder = 0;
+        }
+        if (a->decoder) {
+            rb_gc_unregister_address(&a->decoder);
+            a->decoder = 0;
+        }
         free(a);
+    }
+    return Qtrue;
 }
 
 VALUE db_postgres_adapter_allocate(VALUE klass) {
@@ -108,11 +120,11 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     if (!a->connection)
         rb_raise(eSwiftRuntimeError, "unable to allocate database handle");
     if (PQstatus(a->connection) == CONNECTION_BAD)
-        rb_raise(eSwiftConnectionError, PQerrorMessage(a->connection));
+        rb_raise(eSwiftConnectionError, "%s", PQerrorMessage(a->connection));
 
     PQsetNoticeProcessor(a->connection, (PQnoticeProcessor)db_postgres_adapter_notice, (void*)self);
     if (PQsetClientEncoding(a->connection, CSTRING(enc)) != 0)
-        rb_raise(eSwiftConnectionError, PQerrorMessage(a->connection));
+        rb_raise(eSwiftConnectionError, "%s", PQerrorMessage(a->connection));
     return self;
 }
 
@@ -161,10 +173,16 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
                 else
                     bind_args_fmt[n] = 0;
 
-                data = typecast_to_string(data);
-                rb_ary_push(typecast_bind, data);
-                bind_args_size[n] = RSTRING_LEN(data);
-                bind_args_data[n] = RSTRING_PTR(data);
+                VALUE coerced = typecast_encode(data);
+                if (NIL_P(coerced)) {
+                    coerced = a->encoder
+                        ? rb_funcall(a->encoder, rb_intern("call"), 1, data)
+                        : typecast_to_str(data);
+                }
+
+                rb_ary_push(typecast_bind, coerced);
+                bind_args_size[n] = RSTRING_LEN(coerced);
+                bind_args_data[n] = RSTRING_PTR(coerced);
             }
         }
 
@@ -191,7 +209,7 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     rb_gc_unregister_address(&sql);
     rb_gc_unregister_address(&bind);
     db_postgres_check_result(result);
-    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result, a->decoder);
 }
 
 VALUE db_postgres_adapter_begin(int argc, VALUE *argv, VALUE self) {
@@ -371,7 +389,7 @@ VALUE db_postgres_adapter_result(VALUE self) {
     result = PQgetResult(a->connection);
     while ((rest = PQgetResult(a->connection))) PQclear(rest);
     db_postgres_check_result(result);
-    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result, a->decoder);
 }
 
 VALUE db_postgres_adapter_native(VALUE self) {
@@ -423,9 +441,15 @@ VALUE db_postgres_adapter_query(int argc, VALUE *argv, VALUE self) {
                 else
                     bind_args_fmt[n] = 0;
 
-                data = typecast_to_string(data);
-                bind_args_size[n] = RSTRING_LEN(data);
-                bind_args_data[n] = RSTRING_PTR(data);
+                VALUE coerced = typecast_encode(data);
+                if (NIL_P(coerced)) {
+                    coerced = a->encoder
+                        ? rb_funcall(a->encoder, rb_intern("call"), 1, data)
+                        : typecast_to_str(data);
+                }
+
+                bind_args_size[n] = RSTRING_LEN(coerced);
+                bind_args_data[n] = RSTRING_PTR(coerced);
             }
         }
 
@@ -515,7 +539,7 @@ VALUE db_postgres_adapter_write(int argc, VALUE *argv, VALUE self) {
     db_postgres_check_result(result);
     if (!result)
         rb_raise(eSwiftRuntimeError, "invalid result at the end of COPY command");
-    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result, a->decoder);
 }
 
 VALUE db_postgres_adapter_read(int argc, VALUE *argv, VALUE self) {
@@ -592,7 +616,39 @@ VALUE db_postgres_adapter_read(int argc, VALUE *argv, VALUE self) {
     db_postgres_check_result(result);
     if (!result)
         rb_raise(eSwiftRuntimeError, "invalid result at the end of COPY command");
-    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result);
+    return db_postgres_result_load(db_postgres_result_allocate(cDPR), result, a->decoder);
+}
+
+VALUE db_postgres_adapter_encoder_set(VALUE self, VALUE encoder) {
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    if (NIL_P(encoder)) {
+        if (a->encoder)
+            rb_gc_unregister_address(&a->encoder);
+        a->encoder = 0;
+    }
+    else {
+        a->encoder = encoder;
+        rb_gc_register_address(&encoder);
+    }
+    return Qtrue;
+}
+
+VALUE db_postgres_adapter_decoder_set(VALUE self, VALUE decoder) {
+    Adapter *a = db_postgres_adapter_handle_safe(self);
+    if (NIL_P(decoder)) {
+        if (a->decoder)
+            rb_gc_unregister_address(&a->decoder);
+        a->decoder = 0;
+    }
+    else {
+        a->decoder = decoder;
+        rb_gc_register_address(&decoder);
+    }
+    return Qtrue;
+}
+
+VALUE db_postgres_adapter_typemap(VALUE self) {
+    return typecast_typemap();
 }
 
 void init_swift_db_postgres_adapter() {
@@ -619,8 +675,13 @@ void init_swift_db_postgres_adapter() {
     rb_define_method(cDPA, "write",       db_postgres_adapter_write,       -1);
     rb_define_method(cDPA, "read",        db_postgres_adapter_read,        -1);
 
+    rb_define_method(cDPA, "encoder=",    db_postgres_adapter_encoder_set,  1);
+    rb_define_method(cDPA, "decoder=",    db_postgres_adapter_decoder_set,  1);
+    rb_define_method(cDPA, "typemap",     db_postgres_adapter_typemap,      0);
+
     rb_define_method(cDPA, "native_bind_format",  db_postgres_adapter_native,     0);
     rb_define_method(cDPA, "native_bind_format=", db_postgres_adapter_native_set, 1);
+
 
     rb_global_variable(&sUser);
 }

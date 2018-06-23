@@ -45,6 +45,7 @@ void db_postgres_statement_mark(Statement *s) {
 VALUE db_postgres_statement_deallocate(Statement *s) {
     if (s)
         free(s);
+    return Qtrue;
 }
 
 VALUE db_postgres_statement_allocate(VALUE klass) {
@@ -103,7 +104,8 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
     VALUE bind, data, typecast_bind;
 
     Statement *s = db_postgres_statement_handle_safe(self);
-    connection   = db_postgres_adapter_handle_safe(s->adapter)->connection;
+    Adapter *a   = db_postgres_adapter_handle_safe(s->adapter);
+    connection   = a->connection;
 
     rb_scan_args(argc, argv, "00*", &bind);
 
@@ -128,10 +130,17 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
                     bind_args_fmt[n] = 1;
                 else
                     bind_args_fmt[n] = 0;
-                data = typecast_to_string(data);
-                rb_ary_push(typecast_bind, data);
-                bind_args_size[n] = RSTRING_LEN(data);
-                bind_args_data[n] = RSTRING_PTR(data);
+
+                VALUE coerced = typecast_encode(data);
+                if (NIL_P(coerced)) {
+                    coerced = a->encoder
+                        ? rb_funcall(a->encoder, rb_intern("call"), 1, data)
+                        : typecast_to_str(data);
+                }
+
+                rb_ary_push(typecast_bind, coerced);
+                bind_args_size[n] = RSTRING_LEN(coerced);
+                bind_args_data[n] = RSTRING_PTR(coerced);
             }
         }
 
