@@ -48,6 +48,7 @@ rake
     #read(table = nil, fields = nil, io = nil, &block)
     #encoder=
     #decoder=
+    #typemap
 
   Swift::DB::Postgres::Statement
     .new(Swift::DB::Postgres, sql)
@@ -86,8 +87,8 @@ rake
 
 ## Bind parameters and hstore operators
 
-Swift::DB::Postgres uses '?' as a bind parameter and replaces them with the '$' equivalents. This causes issues when
-you try to use the HStore '?' operator. You can permanently or temporarily disable the replacement strategy as below:
+`Swift::DB::Postgres` uses `?` as a bind parameter and replaces them with the `$` equivalents. This causes issues when
+you try to use the HStore `?` operator. You can permanently or temporarily disable the replacement strategy as below:
 
 ```ruby
 
@@ -117,10 +118,9 @@ p row #=> {:id => 1, :name => 'test', :age => 30, :created_at=> #<Swift::DateTim
 
 ### Typecast support
 
-The Adapter, Statement and Result classes understand the following Ruby and Postgres
-types and will attempt to typecast values in either direction appropriately. Types not
-listed below will be stringified on the way in to the database and returned as a raw
-string value on the way out.
+The library understands the following Ruby and Postgres types and will attempt to typecast
+values in either direction appropriately. Types not listed below will be stringified on the
+way in to the database and returned as a raw string value on the way out.
 
 ```
 ╭────────────────┬─────────────────────╮
@@ -143,9 +143,8 @@ string value on the way out.
 
 ### Custom encoder
 
-`Adapter#execute` or `Statement#execute` will attempt to encode bind values and
-then fallback to stringifying unsupported types using `Object#to_s`. This can
-be overriden with a customer encoder.
+`Swift::DB::Postgres#execute` or `Swift::DB::Postgres::Statement#execute` will attempt to encode bind values and
+then fallback to stringifying unsupported types using `Object#to_s`. This can be overriden with a customer encoder.
 
 e.g.
 
@@ -166,7 +165,7 @@ The encoder can be any object that implements `.call` and is passed the bind val
 
 ### Custom decoder
 
-Logical inverse of above. Result#each attempts to decode known types but will return a raw string if it cannot
+Logical inverse of above. `Result#each` attempts to decode known types but will return a raw string if it cannot
 decode a value. A decoder can be provided to extend the typecasting support, the decoder is passed in extra
 metadata hints to help including a field name and the Postgres OID.
 
@@ -181,9 +180,13 @@ db.decoder = proc do |field, oid, value|
 end
 ```
 
+You can get a list of statically generated OIDs with type description using `Swift::DB::Postgres#typemap` but
+this method only exists for convenience and the type map OIDs may not include all the supported types in your
+PostgreSQL instance.
+
 ### Asynchronous
 
-Hint: You can use `Adapter#fileno` and `EventMachine.watch` if you need to use this with EventMachine.
+You can use `Swift::DB::Postgres#fileno` and `EventMachine.watch` if you need to use this with EventMachine.
 
 ```ruby
 require 'swift/db/postgres'
