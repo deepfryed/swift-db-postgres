@@ -187,7 +187,16 @@ PostgreSQL instance.
 
 ### Asynchronous
 
-You can use `Swift::DB::Postgres#fileno` and `EventMachine.watch` if you need to use this with EventMachine.
+There are several approaches to handling IO wait and concurrency but all of them require creating a connection
+pool and checking out a connection to run queries in parallel.
+
+1. Create a connection pool with separate connections to the database.
+2. Use `Swift::DB::Postgres#query` to execute a SQL in a non-blocking fashion.
+3. Use one of the polling schemes below to retrieve results.
+
+#### Threads
+
+Call `Swift::DB::Postgres::Result#each` in a thread to handle IO wait
 
 ```ruby
 require 'swift/db/postgres'
@@ -204,8 +213,45 @@ pool = 3.times.map {Swift::DB::Postgres.new(db: 'swift_test')}
 end
 
 Thread.list.reject {|thread| Thread.current == thread}.each(&:join)
-rows #=> [3, 2, 1]
+p rows #=> [3, 2, 1]
 ```
+
+#### IO select
+
+Use `Swift::DB::Postgres#fileno` to get the unix file descriptor and create an IO object. You can
+then use `Kernel#select` to poll the IO object.
+
+```ruby
+require 'swift/db/postgres'
+
+rows = []
+pool = 3.times.map {Swift::DB::Postgres.new(db: 'swift_test')}
+
+io_list = pool.map(&:fileno).map {|fd| IO.for_fd(fd) }
+io_lookup = Hash[io_list.map(&:fileno).zip(pool)]
+
+3.times do |n|
+  pool[n].query("select pg_sleep(#{(3 - n) / 10.0}), #{n + 1} as query_id")
+end
+
+loop do
+  ready = IO.select(io_list, nil, nil, 0.5)
+  break if ready.nil?
+  ready.first.each do |io|
+    io_lookup[io.fileno].result.each do |tuple|
+      rows << tuple[:query_id]
+    end
+  end
+end
+
+p rows #=> [3, 2, 1]
+```
+
+#### EventMachine.watch
+
+Similar to above example, you can use EventMachine.watch on the file descriptor returned by `Swift::DB::Postgres::Result#fileno`
+
+See https://www.rubydoc.info/github/eventmachine/eventmachine/EventMachine.watch
 
 ### Data I/O
 
