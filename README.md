@@ -63,6 +63,7 @@ rake
     #each
     #insert_id
     #clear
+    #get(row, column)
 ```
 
 ## Connection options
@@ -72,7 +73,7 @@ rake
 │ Name               ║  Default   │  Optional   │
 ╞════════════════════╬════════════╪═════════════╡
 │ db                 ║  -         │  No         │
-│ host               ║  127.0.0.1 │  Yes        │
+│ host               ║  -         │  Yes        │
 │ port               ║  5432      │  Yes        │
 │ user               ║  Etc.login │  Yes        │
 │ password           ║  nil       │  Yes        │

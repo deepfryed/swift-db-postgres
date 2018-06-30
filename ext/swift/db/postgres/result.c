@@ -123,6 +123,42 @@ VALUE db_postgres_result_each(VALUE self) {
     return Qtrue;
 }
 
+VALUE db_postgres_result_get(VALUE self, VALUE g_row, VALUE g_col) {
+    VALUE tuple;
+    int row = NUM2INT(g_row), col = NUM2INT(g_col);
+    Result *r = db_postgres_result_handle(self);
+
+    if (!r->result)
+        return Qnil;
+
+    if (row >= PQntuples(r->result) || col >= PQnfields(r->result))
+        return Qnil;
+
+    if (PQgetisnull(r->result, row, col))
+        return Qnil;
+
+    size_t csize = PQgetlength(r->result, row, col);
+    const char *cvalue = PQgetvalue(r->result, row, col);
+    VALUE value = typecast_decode(cvalue, csize, NUM2INT(rb_ary_entry(r->types, col)));
+    if (NIL_P(value)) {
+        if (r->decoder) {
+            value = rb_funcall(
+                r->decoder,
+                rb_intern("call"),
+                3,
+                rb_ary_entry(r->fields, col),
+                rb_ary_entry(r->types, col),
+                rb_str_new(cvalue, csize)
+            );
+        }
+        else {
+            value = rb_str_new(cvalue, csize);
+        }
+    }
+
+    return value;
+}
+
 VALUE db_postgres_result_selected_rows(VALUE self) {
     Result *r = db_postgres_result_handle(self);
     return SIZET2NUM(r->selected);
@@ -167,6 +203,7 @@ void init_swift_db_postgres_result() {
     rb_include_module(cDPR, rb_mEnumerable);
     rb_define_alloc_func(cDPR, db_postgres_result_allocate);
     rb_define_method(cDPR, "each",          db_postgres_result_each,          0);
+    rb_define_method(cDPR, "get",           db_postgres_result_get,           2);
     rb_define_method(cDPR, "selected_rows", db_postgres_result_selected_rows, 0);
     rb_define_method(cDPR, "affected_rows", db_postgres_result_affected_rows, 0);
     rb_define_method(cDPR, "fields",        db_postgres_result_fields,        0);

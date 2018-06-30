@@ -71,9 +71,53 @@ describe 'postgres statement' do
     SQL
 
     result = db.execute('select * from users')
-    tuple  = result.first
-    assert tuple[:tjson] == {"foo" => 1}
-    assert tuple[:bjson] == {"bar" => 1}
+    tuple = result.first
+    assert_equal tuple[:tjson], {"foo" => 1}
+    assert_equal tuple[:bjson], {"bar" => 1}
     assert_kind_of IPAddr, tuple[:ip]
+  end
+
+  it 'should allow fetching result by row and column' do
+    assert db.execute('drop table if exists users')
+    assert db.execute(<<-SQL)
+      create table users (
+        id serial primary key,
+        name text,
+        age int,
+        details json
+      )
+    SQL
+
+    db.encoder = proc do |value|
+      case value
+        when Hash then JSON.dump(value)
+        else value.to_s
+      end
+    end
+
+    db.decoder = proc do |field, oid, value|
+      case field
+        when :details then JSON.parse(value)
+        else nil
+      end
+    end
+
+    assert db.execute('insert into users(name, age, details) values(?,?,?)', 'a', 30, {admin: true})
+    assert db.execute('insert into users(name, age, details) values(?,?,?)', 'b', 40, {admin: false})
+
+    result = db.execute('select * from users')
+    assert_equal result.get(0, 0), 1
+    assert_equal result.get(0, 1), 'a'
+    assert_equal result.get(0, 2), 30
+    assert_equal result.get(0, 3), {"admin" => true}
+
+    assert_equal result.get(1, 0), 2
+    assert_equal result.get(1, 1), 'b'
+    assert_equal result.get(1, 2), 40
+    assert_equal result.get(1, 3), {"admin" => false}
+
+    assert_nil result.get(0, 4)
+    assert_nil result.get(1, 4)
+    assert_nil result.get(2, 0)
   end
 end
