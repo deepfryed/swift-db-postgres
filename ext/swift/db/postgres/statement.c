@@ -114,9 +114,20 @@ VALUE db_postgres_statement_execute(int argc, VALUE *argv, VALUE self) {
     rb_gc_register_address(&bind);
 
     if (RARRAY_LEN(bind) > 0) {
-        bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
-        bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_size = (int *) malloc(sizeof(int) * RARRAY_LEN(bind));
+        if (!bind_args_size)
+            rb_raise(rb_eNoMemError, "bind args");
+        bind_args_fmt  = (int *) malloc(sizeof(int) * RARRAY_LEN(bind));
+        if (!bind_args_fmt) {
+            free(bind_args_size);
+            rb_raise(rb_eNoMemError, "bind args");
+        }
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
+        if (!bind_args_data) {
+            free(bind_args_size);
+            free(bind_args_fmt);
+            rb_raise(rb_eNoMemError, "bind args");
+        }
 
         for (n = 0; n < RARRAY_LEN(bind); n++) {
             data = rb_ary_entry(bind, n);

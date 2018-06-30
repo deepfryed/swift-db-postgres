@@ -25,6 +25,8 @@ VALUE db_postgres_normalized_sql(VALUE sql) {
     VALUE result;
     int i = 0, j = 0, n = 1, size = RSTRING_LEN(sql) * 2, digits;
     char *ptr = RSTRING_PTR(sql), *normalized = malloc(size);
+    if (!normalized)
+        rb_raise(rb_eNoMemError, "normalize sql");
 
     while (i < RSTRING_LEN(sql)) {
         if (*ptr == '?')

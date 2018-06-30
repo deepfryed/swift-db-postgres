@@ -3,9 +3,14 @@
 // (c) Bharanee Rathna 2012
 
 #include <stdio.h>
+#include <stdbool.h>
+
 #include "adapter.h"
 #include "typecast.h"
 #include "gvl.h"
+
+#define BUFFER_SIZE (4096)
+#define MIN(a, b)   ((a) <= (b) ? (a) : (b))
 
 /* declaration */
 VALUE cDPA, sUser;
@@ -52,6 +57,9 @@ VALUE db_postgres_adapter_deallocate(Adapter *a) {
 
 VALUE db_postgres_adapter_allocate(VALUE klass) {
     Adapter *a = (Adapter*)malloc(sizeof(Adapter));
+    if (!a)
+        rb_raise(rb_eNoMemError, "adapter");
+
     memset(a, 0, sizeof(Adapter));
     return Data_Wrap_Struct(klass, 0, db_postgres_adapter_deallocate, a);
 }
@@ -61,19 +69,22 @@ VALUE db_postgres_adapter_notice(VALUE self, char *message) {
     return Qtrue;
 }
 
-void append_ssl_option(char *buffer, int size, VALUE ssl, char *key, char *fallback) {
-    int offset = strlen(buffer);
+static int append_ssl_option(char *buffer, int size, VALUE ssl, char *key, char *fallback) {
+    int offset = strlen(buffer), nchars = 0;
     VALUE option = rb_hash_aref(ssl, ID2SYM(rb_intern(key)));
 
     if (NIL_P(option) && fallback)
-        snprintf(buffer + offset, size - offset, " %s='%s'", key, fallback);
+        nchars += snprintf(buffer + offset, size - offset, " %s='%s'", key, fallback);
 
     if (!NIL_P(option))
-        snprintf(buffer + offset, size - offset, " %s='%s'", key, CSTRING(option));
+        nchars += snprintf(buffer + offset, size - offset, " %s='%s'", key, CSTRING(option));
+
+    return nchars;
 }
 
 VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     char *connection_info;
+    bool use_unix_socket = false;
     VALUE db, user, pass, host, port, ssl, enc;
     Adapter *a = db_postgres_adapter_handle(self);
 
@@ -91,27 +102,39 @@ VALUE db_postgres_adapter_initialize(VALUE self, VALUE options) {
     if (NIL_P(db))
         rb_raise(eSwiftConnectionError, "Invalid db name");
     if (NIL_P(host))
-        host = rb_str_new2("127.0.0.1");
+        use_unix_socket = true;
     if (NIL_P(port))
         port = rb_str_new2("5432");
-    if (NIL_P(user))
-        user = sUser;
     if (NIL_P(enc))
         enc = rb_str_new2("utf8");
 
     if (!NIL_P(ssl) && TYPE(ssl) != T_HASH)
-            rb_raise(eSwiftArgumentError, "ssl options needs to be a hash");
+        rb_raise(eSwiftArgumentError, "ssl options needs to be a hash");
 
-    connection_info = (char *)malloc(4096);
-    snprintf(connection_info, 4096, "dbname='%s' user='%s' password='%s' host='%s' port='%s'",
-        CSTRING(db), CSTRING(user), CSTRING(pass), CSTRING(host), CSTRING(port));
+    if (!NIL_P(ssl) && use_unix_socket)
+        rb_raise(eSwiftArgumentError, "ssl can only be used with tcp sockets, need to specify host.");
+
+
+    size_t nchars = 0;
+    connection_info = (char *)malloc(BUFFER_SIZE);
+    if (!connection_info)
+        rb_raise(rb_eNoMemError, "connection string");
+    if (use_unix_socket)
+        nchars = snprintf(connection_info, BUFFER_SIZE, "dbname='%s'", CSTRING(db));
+    else
+        nchars = snprintf(connection_info, BUFFER_SIZE, "dbname='%s' host='%s' port='%s'", CSTRING(db), CSTRING(host), CSTRING(port));
+
+    if (!NIL_P(user)) {
+        nchars += snprintf(connection_info + MIN(nchars, BUFFER_SIZE), BUFFER_SIZE - nchars, " user='%s' password='%s'",
+            CSTRING(user), CSTRING(pass));
+    }
 
     if (!NIL_P(ssl)) {
-        append_ssl_option(connection_info, 4096, ssl, "sslmode",      "allow");
-        append_ssl_option(connection_info, 4096, ssl, "sslcert",      0);
-        append_ssl_option(connection_info, 4096, ssl, "sslkey",       0);
-        append_ssl_option(connection_info, 4096, ssl, "sslrootcert",  0);
-        append_ssl_option(connection_info, 4096, ssl, "sslcrl",       0);
+        nchars += append_ssl_option(connection_info + MIN(nchars, BUFFER_SIZE), BUFFER_SIZE - nchars, ssl, "sslmode",      "allow");
+        nchars += append_ssl_option(connection_info + MIN(nchars, BUFFER_SIZE), BUFFER_SIZE - nchars, ssl, "sslcert",      0);
+        nchars += append_ssl_option(connection_info + MIN(nchars, BUFFER_SIZE), BUFFER_SIZE - nchars, ssl, "sslkey",       0);
+        nchars += append_ssl_option(connection_info + MIN(nchars, BUFFER_SIZE), BUFFER_SIZE - nchars, ssl, "sslrootcert",  0);
+        nchars += append_ssl_option(connection_info + MIN(nchars, BUFFER_SIZE), BUFFER_SIZE - nchars, ssl, "sslcrl",       0);
     }
 
     a->connection = PQconnectdb(connection_info);
@@ -156,9 +179,20 @@ VALUE db_postgres_adapter_execute(int argc, VALUE *argv, VALUE self) {
     rb_gc_register_address(&bind);
 
     if (RARRAY_LEN(bind) > 0) {
-        bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
-        bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_size = (int *) malloc(sizeof(int) * RARRAY_LEN(bind));
+        if (!bind_args_size)
+            rb_raise(rb_eNoMemError, "bind args");
+        bind_args_fmt  = (int *) malloc(sizeof(int) * RARRAY_LEN(bind));
+        if (!bind_args_fmt) {
+            free(bind_args_size);
+            rb_raise(rb_eNoMemError, "bind args");
+        }
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
+        if (!bind_args_data) {
+            free(bind_args_size);
+            free(bind_args_fmt);
+            rb_raise(rb_eNoMemError, "bind args");
+        }
 
         for (n = 0; n < RARRAY_LEN(bind); n++) {
             data = rb_ary_entry(bind, n);
@@ -423,9 +457,20 @@ VALUE db_postgres_adapter_query(int argc, VALUE *argv, VALUE self) {
         sql = db_postgres_normalized_sql(sql);
 
     if (RARRAY_LEN(bind) > 0) {
-        bind_args_size = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
-        bind_args_fmt  = (int   *) malloc(sizeof(int)    * RARRAY_LEN(bind));
+        bind_args_size = (int *) malloc(sizeof(int) * RARRAY_LEN(bind));
+        if (!bind_args_size)
+            rb_raise(rb_eNoMemError, "bind args");
+        bind_args_fmt  = (int *) malloc(sizeof(int) * RARRAY_LEN(bind));
+        if (!bind_args_fmt) {
+            free(bind_args_size);
+            rb_raise(rb_eNoMemError, "bind args");
+        }
         bind_args_data = (char **) malloc(sizeof(char *) * RARRAY_LEN(bind));
+        if (!bind_args_data) {
+            free(bind_args_size);
+            free(bind_args_fmt);
+            rb_raise(rb_eNoMemError, "bind args");
+        }
 
         rb_gc_register_address(&bind);
         for (n = 0; n < RARRAY_LEN(bind); n++) {
@@ -505,11 +550,13 @@ VALUE db_postgres_adapter_write(int argc, VALUE *argv, VALUE self) {
     }
 
     if (argc > 1) {
-        sql = (char *)malloc(4096);
+        sql = (char *)malloc(BUFFER_SIZE);
+        if (!sql)
+            rb_raise(rb_eNoMemError, "sql string");
         if (NIL_P(fields))
-            snprintf(sql, 4096, "copy %s from stdin", CSTRING(table));
+            snprintf(sql, BUFFER_SIZE, "copy %s from stdin", CSTRING(table));
         else
-            snprintf(sql, 4096, "copy %s(%s) from stdin", CSTRING(table), CSTRING(rb_ary_join(fields, rb_str_new2(", "))));
+            snprintf(sql, BUFFER_SIZE, "copy %s(%s) from stdin", CSTRING(table), CSTRING(rb_ary_join(fields, rb_str_new2(", "))));
 
         result = PQexec(a->connection, sql);
         free(sql);
@@ -519,7 +566,7 @@ VALUE db_postgres_adapter_write(int argc, VALUE *argv, VALUE self) {
     }
 
     if (rb_respond_to(io, rb_intern("read"))) {
-        while (!NIL_P((data = rb_funcall(io, rb_intern("read"), 1, INT2NUM(4096))))) {
+        while (!NIL_P((data = rb_funcall(io, rb_intern("read"), 1, INT2NUM(BUFFER_SIZE))))) {
             data = TO_S(data);
             if (PQputCopyData(a->connection, RSTRING_PTR(data), RSTRING_LEN(data)) != 1)
                 rb_raise(eSwiftRuntimeError, "%s", PQerrorMessage(a->connection));
@@ -584,11 +631,13 @@ VALUE db_postgres_adapter_read(int argc, VALUE *argv, VALUE self) {
 
 
     if (!NIL_P(table)) {
-        sql = (char *)malloc(4096);
+        sql = (char *)malloc(BUFFER_SIZE);
+        if (!sql)
+            rb_raise(rb_eNoMemError, "sql string");
         if (NIL_P(fields))
-            snprintf(sql, 4096, "copy %s to stdout", CSTRING(table));
+            snprintf(sql, BUFFER_SIZE, "copy %s to stdout", CSTRING(table));
         else
-            snprintf(sql, 4096, "copy %s(%s) to stdout", CSTRING(table), CSTRING(rb_ary_join(fields, rb_str_new2(", "))));
+            snprintf(sql, BUFFER_SIZE, "copy %s(%s) to stdout", CSTRING(table), CSTRING(rb_ary_join(fields, rb_str_new2(", "))));
 
         result = PQexec(a->connection, sql);
         free(sql);

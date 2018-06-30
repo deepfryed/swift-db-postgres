@@ -7,10 +7,10 @@ describe 'adapter ssl' do
     key  = File.join(File.dirname(__FILE__), 'server.key')
     cert = File.join(File.dirname(__FILE__), 'server.crt')
 
-    assert db = Swift::DB::Postgres.new(db: 'swift_test', ssl: {sslmode: 'require', sslcert: cert, sslkey: key})
+    assert db = Swift::DB::Postgres.new(db: 'swift_test', host: '127.0.0.1', ssl: {sslmode: 'require', sslcert: cert, sslkey: key})
     assert db.execute('select ssl_is_used()').first[:ssl_is_used]
 
-    assert db = Swift::DB::Postgres.new(db: 'swift_test', ssl: {sslmode: 'disable'})
+    assert db = Swift::DB::Postgres.new(db: 'swift_test', host: '127.0.0.1', ssl: {sslmode: 'disable'})
     assert !db.execute('select ssl_is_used()').first[:ssl_is_used]
   end
 end

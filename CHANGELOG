@@ -1,7 +1,8 @@
-== 0.4.0 (2018-06-23)
+== 0.4.0 (2018-06-30)
 
 * encoder and decoder support for types.
 * Result#clear to free up memory instead of waiting for a GC cycle.
+* default to using unix socket if host is not provided.
 
 == 0.3.2 (2018-06-15)
 
