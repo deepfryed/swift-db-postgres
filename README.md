@@ -249,7 +249,7 @@ p rows #=> [3, 2, 1]
 
 #### EventMachine.watch
 
-Similar to above example, you can use EventMachine.watch on the file descriptor returned by `Swift::DB::Postgres::Result#fileno`
+Similar to above example, you can use `EventMachine.watch` on the file descriptor returned by `Swift::DB::Postgres#fileno`
 
 See https://www.rubydoc.info/github/eventmachine/eventmachine/EventMachine.watch
 
