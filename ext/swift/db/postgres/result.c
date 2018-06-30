@@ -131,7 +131,7 @@ VALUE db_postgres_result_get(VALUE self, VALUE g_row, VALUE g_col) {
     if (!r->result)
         return Qnil;
 
-    if (row >= PQntuples(r->result) || col >= PQnfields(r->result))
+    if (row >= PQntuples(r->result) || col >= PQnfields(r->result) || row < 0 || col < 0)
         return Qnil;
 
     if (PQgetisnull(r->result, row, col))
