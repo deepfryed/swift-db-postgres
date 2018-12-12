@@ -266,7 +266,7 @@ VALUE db_postgres_adapter_begin(int argc, VALUE *argv, VALUE self) {
     if (NIL_P(savepoint))
         savepoint = rb_uuid_string();
 
-    snprintf(command, 256, "savepoint %s", CSTRING(savepoint));
+    snprintf(command, 256, "savepoint sp%s", CSTRING(savepoint));
     result = PQexec(a->connection, command);
     db_postgres_check_result(result);
     PQclear(result);
