@@ -293,7 +293,7 @@ VALUE db_postgres_adapter_commit(int argc, VALUE *argv, VALUE self) {
         a->t_nesting--;
     }
     else {
-        snprintf(command, 256, "release savepoint %s", CSTRING(savepoint));
+        snprintf(command, 256, "release savepoint sp%s", CSTRING(savepoint));
         result = PQexec(a->connection, command);
         db_postgres_check_result(result);
         PQclear(result);
@@ -320,7 +320,7 @@ VALUE db_postgres_adapter_rollback(int argc, VALUE *argv, VALUE self) {
         a->t_nesting--;
     }
     else {
-        snprintf(command, 256, "rollback to savepoint %s", CSTRING(savepoint));
+        snprintf(command, 256, "rollback to savepoint sp%s", CSTRING(savepoint));
         result = PQexec(a->connection, command);
         db_postgres_check_result(result);
         PQclear(result);
